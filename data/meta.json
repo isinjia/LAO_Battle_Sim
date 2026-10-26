@@ -1,0 +1,14 @@
+{
+ "projectPath": "E:\\LAO\\1_Onestre_QA",
+ "svnRevision": 15593,
+ "extractedAt": "2026-10-21 12:17",
+ "logicPortRevision": 15569,
+ "logicChanged": [
+  {
+   "file": "_Scripts/Manager/BattleManager.cs",
+   "state": "modified",
+   "revision": 15572,
+   "author": "lao.client"
+  }
+ ]
+}

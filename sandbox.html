@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>전투 시스템 실험 시뮬레이터</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+:root { --bg: #2b2b2b; --panel: #383838; --panel-2: #2f2f2f; --title: #3c3c3c; --title-on: #4a4a4a; --ink: #e6e6e6; --ink-2: #c3c3c3; --ink-3: #8f8f8f; --rule: #1f1f1f; --accent: #5a8dd6; --pv: #60a5fa; --it: #f87171; --win: #4ade80; --lose: #f87171; --warn: #facc15; --f: "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--f); font-size: 13px; }
+[hidden] { display: none !important; }
+#menubar { height: 32px; background: #1e1e1e; border-bottom: 1px solid #000; display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 13px; }
+#menubar .brand { font-weight: 700; color: #fff; margin-right: 10px; }
+#menubar .menu { position: relative; }
+#menubar .menu > button { background: none; border: none; color: var(--ink); padding: 6px 10px; cursor: pointer; font: inherit; }
+#menubar .menu > button:hover, #menubar .menu.open > button { background: #333; }
+#menubar .dropdown { display: none; position: absolute; left: 0; top: 100%; background: #262626; border: 1px solid #000; min-width: 220px; z-index: 1000; padding: 4px 0; box-shadow: 0 6px 20px #0008; }
+#menubar .menu.open .dropdown { display: block; }
+.menu-item { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--ink); padding: 6px 14px; cursor: pointer; font: inherit; }
+.menu-item:hover { background: #3a3a3a; }
+.menu-item.off { color: var(--ink-3); }
+#status { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+#workspace { position: relative; height: calc(100% - 32px); overflow: hidden; background: #202020; background-image: linear-gradient(#262626 1px, transparent 1px), linear-gradient(90deg, #262626 1px, transparent 1px); background-size: 24px 24px; }
+.win { position: absolute; background: var(--panel); border: 1px solid #141414; box-shadow: 0 4px 18px #0007; display: flex; flex-direction: column; min-width: 240px; min-height: 40px; border-radius: 3px; overflow: hidden; }
+.win-title { height: 28px; background: var(--title); border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; padding: 0 8px; cursor: move; user-select: none; font-size: 12px; font-weight: 700; color: #ddd; gap: 8px; }
+.win-title .win-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win-tools { display: flex; align-items: center; gap: 4px; }
+.win-scale { display: flex; align-items: center; gap: 4px; font-weight: 400; color: var(--ink-2); font-size: 11px; cursor: default; }
+.win-scale input { width: 80px; margin: 0; }
+.win-scale b { width: 36px; text-align: right; font-weight: 500; }
+.win-btn { width: 22px; height: 20px; border: 1px solid #222; background: #2a2a2a; color: #ccc; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; border-radius: 2px; }
+.win-btn:hover { background: #555; }
+.win-body { flex: 1; overflow: auto; background: var(--panel-2); position: relative; }
+.win-content { padding: 10px; min-height: 100%; }
+.win.min .win-body, .win.min .win-resize { display: none; }
+.win-resize { position: absolute; z-index: 5; touch-action: none; user-select: none; }
+.win-resize-n, .win-resize-s { left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+.win-resize-n { top: 0; } .win-resize-s { bottom: 0; }
+.win-resize-w, .win-resize-e { top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+.win-resize-w { left: 0; } .win-resize-e { right: 0; }
+.win-resize-nw, .win-resize-ne, .win-resize-sw, .win-resize-se { width: 10px; height: 10px; z-index: 6; }
+.win-resize-nw { left: 0; top: 0; cursor: nwse-resize; }
+.win-resize-ne { right: 0; top: 0; cursor: nesw-resize; }
+.win-resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+.win-resize-se { right: 0; bottom: 0; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, #777 50%, #777 60%, transparent 60%, transparent 75%, #777 75%, #777 85%, transparent 85%); }
+.win.scene .win-body { overflow: auto; background: #000; }
+.win.scene .win-content { padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100%; min-width: 100%; width: max-content; height: max-content; }
+.scene-canvas { display: block; background: #000; image-rendering: auto; }
+.inspect-stats { width: 100%; border-collapse: collapse; }
+.inspect-stats th { text-align: left; color: var(--ink-2); font-weight: normal; }
+.inspect-stats td { text-align: right; }
+.inspect-stats th, .inspect-stats td { padding: 5px 3px; border-bottom: 1px solid #444; }
+.inspect-skill { display: block; width: 100%; margin: 5px 0; text-align: left; }
+/* 공통 위젯 */
+h3 { margin: 12px 0 6px; font-size: 13px; color: var(--ink-2); }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.row > label { font-size: 11px; color: var(--ink-2); display: grid; gap: 2px; min-width: 0; }
+.row > label.inl { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+input, select, textarea, button { font: inherit; color: var(--ink); }
+input, select, textarea { background: #222; border: 1px solid #111; border-radius: 3px; padding: 3px 6px; min-width: 0; }
+input[type=number] { width: 68px; }
+button { background: #4a4a4a; border: 1px solid #1a1a1a; border-radius: 3px; padding: 4px 10px; cursor: pointer; }
+button:hover:not(:disabled) { background: #5a5a5a; }
+button.primary { background: var(--accent); border-color: #2b5aa0; color: #fff; font-weight: 700; }
+button:disabled { opacity: .45; cursor: default; }
+.note { font-size: 11px; color: var(--ink-3); }
+.grow { flex: 1 1 140px; }
+.pill { display: inline-block; padding: 0 6px; border-radius: 3px; font-size: 11px; border: 1px solid currentColor; }
+.grid9 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.grid9 .lbl { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); font-size: 10px; color: var(--ink-3); text-align: center; }
+.slot { min-height: 46px; border: 1px dashed #555; border-radius: 3px; background: #262626; padding: 3px 5px; text-align: left; display: grid; align-content: start; gap: 0; font-size: 11px; }
+.slot.filled { border-style: solid; }
+.slot.sel { border-color: var(--pv); box-shadow: inset 0 0 0 1px var(--pv); }
+.slot .pos { font-size: 9px; color: var(--ink-3); }
+.slot .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot .sub { color: var(--ink-2); font-size: 10px; }
+.editor { display: grid; gap: 6px; border-top: 1px solid #1a1a1a; padding-top: 8px; margin: 6px 0; }
+.sys { display: grid; gap: 6px; }
+.sysrow { border: 1px solid #1a1a1a; border-radius: 3px; padding: 6px 8px; display: grid; gap: 3px; background: #333; }
+.sysrow .hd { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.sysrow .hd .tag { font-size: 10px; padding: 0 5px; border-radius: 3px; border: 1px solid var(--pv); color: var(--pv); font-weight: 500; }
+.sysrow .desc { font-size: 11px; color: var(--ink-2); }
+.sysrow .opts { display: grid; gap: 2px; padding-left: 20px; font-size: 11px; color: var(--ink-2); }
+.sysrow .opts label { display: flex; gap: 5px; align-items: flex-start; }
+.sysrow .verdict { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--ink-2); padding-top: 4px; border-top: 1px dashed #1a1a1a; }
+.sysrow .verdict input { flex: 1 1 100px; font-size: 11px; padding: 2px 5px; }
+.sysrow.off .hd { color: var(--ink-3); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #1a1a1a; white-space: nowrap; }
+th { color: var(--ink-3); font-weight: 500; }
+td.n, th.n { text-align: right; }
+.log { display: grid; gap: 3px; align-content: start; }
+.th { font-size: 12px; padding: 4px 7px; border-radius: 3px; background: #333; border-left: 3px solid transparent; }
+.th .r { color: var(--ink-3); margin-right: 4px; }
+.th .why { color: var(--ink-2); font-size: 11px; margin-top: 2px; white-space: pre-wrap; } .th .res { font-size: 11px; margin-top: 2px; } .th .k { color: #ffb22e; font-weight: 700; } .th .cmp { color: var(--pv); font-size: 11px; margin-top: 2px; }
+.th-ours { border-left-color: var(--win); } .th-theirs { border-left-color: var(--lose); } .th-stage { border-left-color: var(--ink-3); } .th-sys { border-left-color: var(--pv); background: #2a3340; } .th-issue { border-left-color: var(--warn); background: #403a2a; }
+.th .ok { color: var(--win); } .th .bad { color: var(--lose); } .th .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<div id="menubar">
+  <span class="brand">전투 시스템 실험 시뮬레이터</span>
+  <div class="menu" id="menuWin"><button>창 ▾</button><div class="dropdown" id="winMenu"></div></div>
+  <div class="menu" id="menuLayout"><button>레이아웃 ▾</button><div class="dropdown"><button class="menu-item" id="layoutReset">기본 배치로 되돌리기</button><button class="menu-item" id="layoutScene">씬 창을 화면에 맞추기</button></div></div>
+  <span id="status">데이터 불러오는 중…</span>
+</div>
+<div id="workspace"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js"></script>
+<script>
+// 브라우저가 예전 스크립트를 캐시해 쓰지 않도록 매번 다른 버전 값을 붙여 읽는다(순서 유지)
+(function () { const v = Date.now(); for (const f of ["engine/enums.js", "engine/core.js", "engine/stats.js", "engine/buffs.js", "engine/combat.js", "engine/ai.js", "engine/battle.js", "sd/sd.js", "sd/chars/index.js", "sd/charmap.js", "sandbox-sd.js", "sandbox-core.js", "sandbox-wm.js", "sandbox-ui.js", "sandbox-scene.js", "sandbox-panels.js"]) document.write('<script src="' + f + '?v=' + v + '"><\/script>'); })();
+</script>
+<script>
+(async function () {
+  const C = window.CORE, $ = (id) => document.getElementById(id);
+  const setStatus = (t) => { $('status').textContent = t; };
+  C.on('status', setStatus);
+  // 메뉴
+  document.querySelectorAll('#menubar .menu > button').forEach((b) => b.addEventListener('click', (ev) => { const m = b.parentElement; const open = m.classList.contains('open'); document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open'); ev.stopPropagation(); }));
+  document.addEventListener('click', () => document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')));
+  WM.init($('workspace'), $('winMenu'));
+  $('layoutReset').addEventListener('click', () => WM.resetLayout());
+  $('layoutScene').addEventListener('click', () => { const w = WM.wins.scene; w.x = 0; w.y = 0; w.w = Math.max(640, $('workspace').clientWidth - 380); w.h = Math.max(360, Math.round(w.w * 9 / 16) + 30); w.scale = 1; WM.apply(w); WM.save(); });
+  try { await C.load(); await UI.load(); } catch (e) { console.error(e); setStatus('전투 자료를 불러오지 못했습니다. 다시 실행해 주세요.'); return; }
+  const ws = $('workspace'), WW = ws.clientWidth, WH = ws.clientHeight;
+  const sceneW = Math.max(640, WW - 380), sceneH = Math.min(WH - 270, Math.round(sceneW * 9 / 16) + 30);
+  // 창들
+  const sceneEl = document.createElement('div'); sceneEl.style.cssText = 'width:100%;height:100%';
+  const sceneWin = WM.create({ id: 'scene', title: '전투 화면', x: 0, y: 0, w: sceneW, h: sceneH, minW: 480, minH: 300, content: sceneEl, scalable: false, onResize: () => SCENE.fit() });
+  sceneWin.el.classList.add('scene');
+  // 씬 창은 배율 대신 확대(줌) 슬라이더
+  const zoomBox = document.createElement('label'); zoomBox.className = 'win-scale'; zoomBox.innerHTML = '확대 <input type="range" min="50" max="300" step="10" value="100"><b>100%</b>';
+  sceneWin.el.querySelector('.win-tools').prepend(zoomBox);
+  zoomBox.querySelector('input').addEventListener('input', (e) => { SCENE.zoom = +e.target.value / 100; zoomBox.querySelector('b').textContent = e.target.value + '%'; SCENE.fit(); });
+  const mk = (id, title, x, y, w, h, fill) => { const el = document.createElement('div'); const win = WM.create({ id, title, x, y, w, h, content: el }); fill(el); return win; };
+  mk('systems', '실험 시스템', sceneW + 8, 0, WW - sceneW - 10, Math.round(WH * 0.55), (el) => PANELS.renderSystems(el));
+  mk('setup', '배치 · 전투 옵션', sceneW + 8, Math.round(WH * 0.55) + 6, WW - sceneW - 10, WH - Math.round(WH * 0.55) - 8, (el) => { PANELS.renderSetup(el); C.on('battle', () => { const b = el.querySelector('#btnStart'); if (b) b.textContent = C.S.battle ? '다시 시작' : '전투 시작'; const st = el.querySelector('#btnStep'); if (st) st.disabled = !C.S.battle || !!C.S.battle.result || C.S.playing; const pl = el.querySelector('#btnPlay'); if (pl) { pl.disabled = !C.S.battle || !!C.S.battle.result; pl.textContent = C.S.playing ? '일시 정지' : '자동 진행'; } const rs = el.querySelector('#btnReset'); if (rs) rs.disabled = !C.S.battle; }); });
+  mk('log', '행동 기록', 0, sceneH + 6, Math.round(sceneW * 0.36), WH - sceneH - 8, (el) => PANELS.renderLog(el));
+  mk('intents', '적의 다음 행동', Math.round(sceneW * 0.36) + 6, sceneH + 6, Math.round(sceneW * 0.32) - 6, WH - sceneH - 8, (el) => PANELS.renderIntents(el));
+  mk('inspector', '선택 정보', Math.round(sceneW * 0.68) + 6, sceneH + 6, Math.max(240, sceneW - Math.round(sceneW * 0.68) - 6), Math.max(200, WH - sceneH - 8), (el) => PANELS.renderInspector(el));
+  SCENE.mount(sceneEl);
+  new ResizeObserver(() => SCENE.fit()).observe(sceneEl);
+  setStatus('');
+  if (window.SDL) SDL.init().then((ok) => { if (!ok) setStatus('캐릭터 이미지를 불러오지 못했습니다. 다시 실행해 주세요.'); });
+})();
+</script>
+</body>
+</html>

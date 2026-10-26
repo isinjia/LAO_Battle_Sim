@@ -1,0 +1,5 @@
+@echo off
+chcp 65001 >nul
+cd /d "%~dp0"
+start "" "http://localhost:8767/sandbox.html"
+python tools\serve.py 8767

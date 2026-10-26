@@ -1,0 +1,95 @@
+{
+  "reportedResultsRecounted": {
+    "preliminary": {
+      "cases": 58,
+      "runs": 580,
+      "outcomes": {
+        "win": 110,
+        "timeout": 119,
+        "lose": 351
+      },
+      "allWin": 0
+    },
+    "restored": {
+      "cases": 58,
+      "runs": 580,
+      "outcomes": {
+        "win": 253,
+        "timeout": 131,
+        "lose": 196
+      },
+      "allWin": 15
+    }
+  },
+  "overBudgetStrictCases": [
+    618,
+    670,
+    672,
+    764
+  ],
+  "overBudgetMembers": [
+    {
+      "case": 764,
+      "post": 1426378,
+      "member": "Char_3P_Alice_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    },
+    {
+      "case": 670,
+      "post": 11079736,
+      "member": "Char_BR_InvDragon_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    },
+    {
+      "case": 670,
+      "post": 11079736,
+      "member": "Char_3P_Rhea_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    },
+    {
+      "case": 672,
+      "post": 11079736,
+      "member": "Char_BR_InvDragon_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    },
+    {
+      "case": 672,
+      "post": 11079736,
+      "member": "Char_3P_Rhea_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    },
+    {
+      "case": 618,
+      "post": 23528553,
+      "member": "Char_3P_Aqua_N",
+      "level": 90,
+      "points": 297,
+      "budget": 270
+    }
+  ],
+  "excludingOverBudgetForReferenceOnly": {
+    "preliminary": {
+      "cases": 54,
+      "runs": 540,
+      "wins": 90,
+      "allWin": 0
+    },
+    "restored": {
+      "cases": 54,
+      "runs": 540,
+      "wins": 215,
+      "allWin": 13
+    }
+  },
+  "note": "총점 초과 항목을 제외한 참고 집계이며, 전체 기존 공략 호환률이나 독립 재실행 결과가 아님"
+}
