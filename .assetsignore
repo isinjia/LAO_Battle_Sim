@@ -1,0 +1,19 @@
+# 배포(Cloudflare Workers 정적 자산)에서 제외할 것. 파일 하나가 25MiB 를 넘으면 배포가 실패하므로 깃 내부 파일은 반드시 제외한다.
+.git
+.gitignore
+.assetsignore
+.claude
+.wrangler
+.preview
+.preview.zip
+node_modules
+tools
+reports
+__pycache__
+*.bat
+*.md
+*.py
+*.txt
+wrangler.jsonc
+package.json
+package-lock.json

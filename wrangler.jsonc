@@ -1,0 +1,7 @@
+{
+  // Cloudflare Workers 정적 배포 설정. 저장소 루트를 그대로 올리되 .assetsignore 에 적힌 폴더는 제외한다.
+  "name": "lao-battle-sim",
+  "compatibility_date": "2026-10-23",
+  "observability": { "enabled": true },
+  "assets": { "directory": "." }
+}
