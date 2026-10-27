@@ -151,7 +151,7 @@
   function resetBattle(silent) {
     stopPlay();
     if (S.battle && window.SDL) for (const u of S.battle.allUnits || []) SDL.release(u);
-    S.battle = null; S.pending = null; S.pendingSel = null; S.manual = null; S.preview = null; S.lastPreview = null; S.intents = new Map(); S.anims = new Map(); S.lastAction = null; S.result = null;
+    S.battle = null; S.pending = null; S.pendingSel = null; S.manual = null; S.preview = null; S.lastPreview = null; S.intents = new Map(); S.anims = new Map(); S.lastAction = null; S.result = null; S.apAnim = null;
     if (!silent) { S.log = []; logLine('stage', '초기화했습니다. 전투 시작을 누르세요.'); }
     emit('battle');
   }
@@ -170,7 +170,12 @@
     const rec = L.battle.step(b);
     const logs = b.log.slice(S.lastLog); S.lastLog = b.log.length;
     for (const e of logs) if (e.t === 'wave') logLine('stage', `웨이브 ${e.wave} 시작 · 몬스터 ${e.monsters.length}마리`);
-    if (rec.type === 'input') { S.apAnim = { t0: performance.now(), dur: rec.turn && rec.turn.isMoveFollowup ? 0 : apAdvanceDuration(b) * timeScale() * 1000 }; onInput(rec); }
+    if (rec.type === 'input') {
+      // 인게임 순서: 라운드 시작 대기(1초) → 행동력 연출(진입 → 경주 → 유지 → 줄 세우기 → 1등 칸) → 행동
+      const pres = apPresentation(b, rec.turn);
+      S.apAnim = { t0: performance.now() + (pres.total > 0 ? ROUND_START_WAIT * timeScale() * 1000 : 0), phases: pres.phases, total: pres.total, round: b.round };
+      onInput(rec);
+    }
     else if (rec.type === 'action') onAction(rec, logs);
     if (b.result) onEnd();
     refreshIntents();
@@ -206,10 +211,27 @@
     S.lastPreview = S.preview ? Object.assign({ aid: u.aid }, S.preview) : null;
     emit('input', rec);
   }
-  // ---- 연출 시간 (클라이언트 Panel_StageBattle: _turnApSimulationTimeScale 0.2, 최소 0.15초, 최대 2초 / BattleState_RoundStarting 1초 대기)
+  // ---- 연출 시간 (클라이언트 Panel_StageBattle.coTurnApEffectEndCheck → coArrangeApTrackSlots / BattleState_RoundStarting 1초 대기)
+  //  진입 _turnApTrackEntryDuration 0.3초 → 경주 (전투 계산 시간 × _turnApSimulationTimeScale 0.2, 최소 0.15초, 최대 2초)
+  //  → 유지 _turnApTrackHoldDuration 0.35초 → 줄 세우기 _turnApSlotArrangeDuration 0.25초 → 1등 칸 이동 0.25초
   const SPEED_SCALE = { 1: 1, 2: 0.5, 3: 0.2, 4: 0 };
   const timeScale = () => (SPEED_SCALE[+setup.speed] !== undefined ? SPEED_SCALE[+setup.speed] : 1);
+  const AP_PRESENT = { entry: 0.3, hold: 0.35, arrange: 0.25 };
   function apAdvanceDuration(b) { const t = (b && b.s && b.s.apAdvance) || 0; return t > 0 ? Math.min(2, Math.max(0.15, t * 0.2)) : 0.15; }
+  // 전투 계산과 같이, 연출 시작 시점에 이미 행동력이 가득 찬 행동 가능 유닛(또는 준비된 예약 공격)이 있으면 경주를 생략한다
+  function apRaceSkipped(b) {
+    const pre = (u) => (u.preTurnPos === undefined ? u.turnPos : u.preTurnPos);
+    if (b.units.some((u) => alive(u) && !u.removed && pre(u) >= 100 && speedOf(u) > 0 && !hasB(u, 'STAGE_AP_STOP'))) return true;
+    return (b.reserveSkills || []).some((r) => r.owner && alive(r.owner) && (r.previousActionPoint || 0) >= 100);
+  }
+  // 이번 라운드 행동력 연출의 단계 목록(밀리초). 화면(sandbox-scene drawTrack)이 단계별로 칸 위치를 계산한다
+  function apPresentation(b, turn) {
+    const k = timeScale() * 1000, phases = [];
+    if (turn && turn.isMoveFollowup) return { phases, total: 0 }; // 이동 후 행동(실험 시스템)은 연출 없이 이어짐
+    if (!apRaceSkipped(b)) phases.push({ name: 'entry', dur: AP_PRESENT.entry * k }, { name: 'advance', dur: apAdvanceDuration(b) * k }, { name: 'hold', dur: AP_PRESENT.hold * k });
+    phases.push({ name: 'lineup', dur: AP_PRESENT.arrange * k }, { name: 'final', dur: AP_PRESENT.arrange * k });
+    return { phases, total: phases.reduce((a, p) => a + p.dur, 0) };
+  }
   const ROUND_START_WAIT = 1.0;
   function animDuration(u, name) { try { const c = u._sd && u._sd.tpl.data.clips[name]; if (c && c.dur) return c.dur; } catch (e) { /* 리그 없음 */ } return name === 'move' ? 0.7 : name === 'wait' ? 0.6 : 1.5; }
   // coBottomSkillActive: 자동 전투가 아니면 1번 스킬(쿨다운이면 2번)을 자동으로 눌러 대상 후보를 띄운다. 봉인이면 선택하지 않는다.
@@ -269,7 +291,7 @@
     if (!S.playing) return;
     if (S.manual && !S.manual.sel) { stopPlay(); return; }
     let d = 0;
-    if (rec && rec.type === 'input') d = (apAdvanceDuration(b) + ROUND_START_WAIT) * timeScale() * 1000; // 행동력 연출 + 라운드 시작 대기
+    if (rec && rec.type === 'input') d = ROUND_START_WAIT * timeScale() * 1000 + (S.apAnim ? S.apAnim.total : 0); // 라운드 시작 대기 + 행동력 연출 전체
     else if (rec && rec.type === 'action') d = (S.lastAction ? S.lastAction.animDur : 1.5) * 1000; // 행동 동작이 끝날 때까지
     S.timer = setTimeout(loop, d);
   }

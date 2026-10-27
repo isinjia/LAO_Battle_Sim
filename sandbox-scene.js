@@ -187,12 +187,22 @@
     if (now >= hold) { v += (u.hp - v) * Math.min(1, dt * 8); if (Math.abs(u.hp - v) < 1) v = u.hp; }
     SCENE.hp.set(u.aid, v); return v;
   }
-  // 턴 순서 바에 보일 행동력: 라운드가 바뀐 직후 이전 값에서 현재 값으로 연출 시간 동안 채운다
-  function shownAp(u, now) {
-    const an = C.S.apAnim; if (!an || !an.dur) return u.turnPos;
-    const k = Math.min(1, (now - an.t0) / an.dur); const pre = u.preTurnPos === undefined ? u.turnPos : u.preTurnPos;
-    return pre + (u.turnPos - pre) * k;
+  // 행동력 연출 단계 (Panel_StageBattle.coTurnApEffectEndCheck → coArrangeApTrackSlots). 단계 목록은 sandbox-core apPresentation 이 만든다
+  function apPhase(now) {
+    const an = C.S.apAnim; if (!an || !an.phases || !an.phases.length) return null;
+    if (now < an.t0) return { name: 'wait', p: 0, an };
+    let t = now - an.t0;
+    for (const ph of an.phases) { if (t < ph.dur) return { name: ph.name, p: ph.dur > 0 ? t / ph.dur : 1, an }; t -= ph.dur; }
+    return { name: 'done', p: 1, an };
   }
+  // 게이지에 보일 행동력: 경주 단계에서만 이전 값 → 현재 값으로 채운다. 경주를 생략한 라운드는 처음부터 현재 값
+  function gaugeAp(pre, cur, ph) {
+    if (!ph || ph.name === 'done' || ph.name === 'lineup' || ph.name === 'final' || ph.name === 'hold') return cur;
+    const racing = ph.an.phases.some((p) => p.name === 'advance');
+    if (ph.name === 'advance') return pre + (cur - pre) * ph.p;
+    return racing ? pre : cur;
+  }
+  function shownAp(u, now) { const pre = u.preTurnPos === undefined ? u.turnPos : u.preTurnPos; return gaugeAp(pre, u.turnPos, apPhase(now)); }
 
   // ---------------------------------------------------------------- 매 프레임
   function tick() {
@@ -399,7 +409,9 @@
   // =====================================================================================================
   //  원작 프리팹 UI: Panel_StageBattle / UIBattleCreature / UICreatureInfo 의 위젯 배치를 그대로 그린다 (sandbox-ui.js)
   // =====================================================================================================
-  const AP_TRACK = { LEFT_X: -920, RIGHT_X: -3, ALLY_Y: 100, ENEMY_Y: 0, FIRST_Y: 50, SLOT: 102, SCALE: 0.65 }; // UIBattleCreature.cs / Panel_StageBattle._turnApSlotSpacing / UIConstants.Scale65
+  // 행동력 트랙 상수: UIBattleCreature.cs AP_TRACK_LEFT_X -920 / RIGHT_X -15 / ALLY_Y 150 / ENEMY_Y 50 / FIRST_Y 100, _apWinnerScale 0.85,
+  //  Panel_StageBattle._turnApSlotSpacing 102, _turnApWaveEntryDuration 0.7, _turnApWaveEntryInterval 0.1, UIConstants.Scale65
+  const AP_TRACK = { LEFT_X: -920, RIGHT_X: -15, ALLY_Y: 150, ENEMY_Y: 50, FIRST_Y: 100, SLOT: 102, SCALE: 0.65, WINNER_SCALE: 0.85, WAVE_ENTRY: 0.7, WAVE_INTERVAL: 0.1 };
   function hitFromUi(o, rect, kind) { hit(rect.x, rect.y, rect.w, rect.h, kind.kind || kind, kind.data); }
   // 오른쪽 아래 스킬 패널 — 라이브 전투 화면(2400x1200 캡처)에서 잰 배치를 설계 좌표(1080 기준)로 환산해 화면 오른쪽 아래에 붙인다.
   //  패널 바탕(사다리꼴) → 헤더 띠("스킬명 : …", 속성 아이콘) → 오른쪽 버프 띠 → "AP n" → 버튼 4개(원형 아이콘 + AP 배지 + 3x3 범위 격자)
@@ -511,60 +523,131 @@
     // 수동 대상 선택 중 미리보기 창 (SkillPreview: 승인 버튼 옆)
     if (m && m.sel && !m.needPlay && pv && C.sysOn('preview')) { const h = SCENE.hits.find((x) => x.kind === 'confirm'); if (h) drawPreviewPanel(ctx, pv, h.x + h.w / 2, h.y + h.h / 2, h.x + h.w / 2 > W * 0.62); }
   }
-  // 행동력 트랙 (UIBattleCreature 들): Anchor 기준 좌표. AP 연출 중엔 AP 비례 위치, 끝나면 순위 칸(1등은 공통 칸)
+  // 행동력 트랙 (UIBattleCreature 들): Anchor 기준 좌표. 인게임과 같은 순서로 칸을 움직인다.
+  //  라운드 시작 대기 → 진입(직전 칸 → 이전 행동력 위치) → 경주(행동력 비례 이동) → 유지 → 줄 세우기(1등 칸 비우고 우승자부터 자기 줄에)
+  //  → 우승자는 두 줄 사이 공통 1등 칸으로(0.85 배율), 나머지는 행동력 순으로 한 칸씩 앞으로. 경주를 생략한 라운드는 줄 세우기부터.
+  //  새로 생긴 칸(웨이브 시작·소환)은 왼쪽 화면 밖에서 진영별 대기 칸으로 입장한다. 예약(지연) 공격은 독립 행동력을 가진 칸으로 함께 선다.
   function drawTrack(ctx, now, markers) {
     const b = C.S.battle; if (!b) return;
     const anchor = UI.find('battle', 'sprTurnBar/ScrollView/Anchor');
     const ax = anchor ? anchor.rect[0] : 109, ay = anchor ? anchor.rect[1] : -491;
     const lay = UI.layout('tbar'); if (!lay.length) return;
-    const S = C.S, acting = S.pending && S.pending.unit;
-    const units = b.units.filter((u) => C.alive(u));
-    const an = S.apAnim, animating = an && an.dur && now < an.t0 + an.dur;
-    const apOf = (u) => Math.min(100, shownAp(u, now));
-    const winner = acting && !animating ? acting : null;
-    // 항상 자기 행동력에 비례한 위치: 0% 왼쪽 끝 → 100% 오른쪽 끝. 먼저 도달해 선택된(행동하는) 유닛만 오른쪽 끝 가운데 칸에 선다
-    // 100% 지점 = 트랙의 흰 세로줄(sprTurnBar/transLine/sprLine). 아이콘 오른쪽 끝이 줄에 닿는 자리까지 차오르고, 줄 오른쪽 칸은 선택된 한 명만 선다
-    const line = UI.find('battle', 'sprTurnBar/transLine/sprLine');
-    const lineX = line ? (line.rect[0] + line.rect[2]) / 2 - ax : -93;
-    const fullX = lineX - 4; // TbarIcon 은 기준점이 오른쪽 끝(rect -120..0)이라 x 가 곧 아이콘 오른쪽 끝
+    const S = C.S;
+    if (SCENE.trackBattle !== b) { SCENE.trackBattle = b; SCENE.track = { pos: new Map(), enter: new Map(), winner: null, ruid: 0 }; }
+    const T = SCENE.track;
+    const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2), easeOut = (p) => 1 - (1 - p) * (1 - p);
+    const clamp01 = (v) => Math.max(0, Math.min(1, v)), lerp = (p, q, k) => p + (q - p) * k;
+    const mix = (p, q, k) => ({ x: lerp(p.x, q.x, k), y: lerp(p.y, q.y, k), s: lerp(p.s === undefined ? AP_TRACK.SCALE : p.s, q.s === undefined ? AP_TRACK.SCALE : q.s, k) });
+    // GetApTrackSlotPosition: 공통 1등 칸(우승자 확대 폭만큼) 뒤로 102 간격. GetApTrackPosition: 왼쪽 끝 ~ 2등 칸을 행동력 0~100 으로
+    const ratio = AP_TRACK.WINNER_SCALE / AP_TRACK.SCALE, winnerSlot = Math.max(1, ratio);
+    const slotX = (i) => AP_TRACK.RIGHT_X - (Math.max(0, i) + winnerSlot) * AP_TRACK.SLOT;
+    const apX = (ap) => lerp(AP_TRACK.LEFT_X, slotX(0), clamp01(ap / 100));
+    const trackY = (ally) => (ally ? AP_TRACK.ALLY_Y : AP_TRACK.ENEMY_Y);
+    const faceWidget = UI.find('tbar', 'UIBattleCreature/TbarIcon'); const fr = faceWidget ? faceWidget.rect : [-120, 0, 0, 120];
+    // GetFirstApTrackSlotPosition: 초상화의 오른쪽 경계와 세로 중심을 고정한 채 확대한다
+    const firstPos = { x: AP_TRACK.RIGHT_X - fr[2] * AP_TRACK.SCALE * (ratio - 1), y: AP_TRACK.FIRST_Y - (fr[1] + fr[3]) / 2 * AP_TRACK.SCALE * (ratio - 1), s: AP_TRACK.WINNER_SCALE };
+    const slotPos = (it, i) => ({ x: slotX(i), y: trackY(it.ally), s: AP_TRACK.SCALE });
+    const apPos = (it, ap) => ({ x: apX(ap), y: trackY(it.ally), s: AP_TRACK.SCALE });
+
+    // 트랙 항목: 살아 있는 유닛 + 독립 행동력을 가진 예약(지연) 공격 (AddReservedActionPointUI)
+    const items = [];
+    for (const u of b.units) if (C.alive(u)) items.push({ key: 'u' + u.aid, u, ally: C.isPC(u) || (u.type === 'SUMMON' && u.team === 1), pre: u.preTurnPos === undefined ? u.turnPos : u.preTurnPos, cur: u.turnPos });
+    for (const r of b.reserveSkills || []) if (r.owner && C.alive(r.owner)) {
+      if (!r._uid) r._uid = ++T.ruid;
+      items.push({ key: 'r' + r._uid, u: r.owner, reserve: r, ally: C.isPC(r.owner) || r.owner.team === 1, pre: r.previousActionPoint || 0, cur: r.actionPoint || 0 });
+    }
+    const byKey = new Map(items.map((it) => [it.key, it]));
+    const ranked = (wk) => items.filter((it) => it.key !== wk).sort((p, q) => (q.cur - p.cur) || (p.u.aid - q.u.aid)); // TurnValue 내림차순, Aid 보조
+    // coArrangeApTrackSlots 1단계: 1등 칸을 비워 둔 채 우승자부터 자기 진영 칸에 줄 세움. 2단계: 우승자는 공통 1등 칸, 나머지는 한 칸 앞으로
+    const lineupLayout = (wk) => { const w = byKey.get(wk), line = w ? [w].concat(ranked(wk)) : ranked(wk); const out = new Map(); line.forEach((it, i) => out.set(it.key, slotPos(it, i))); return out; };
+    const finalLayout = (wk) => { const out = new Map(); ranked(wk).forEach((it, i) => out.set(it.key, slotPos(it, i))); if (byKey.has(wk)) out.set(wk, Object.assign({}, firstPos)); return out; };
+
+    // 우승자(이번 행동권 주인): 행동 직전 멈춤(pending) 중이면 그 유닛. 멈춤이 없는 라운드는 지금 행동 중인 유닛
+    const pend = S.pending, pt = pend && pend.turn;
+    let winnerKey = pt ? (pt.isReserve && pt.reserve && pt.reserve._uid ? 'r' + pt.reserve._uid : pend.unit ? 'u' + pend.unit.aid : null) : null;
+    const ph = apPhase(now), an = ph && ph.an;
+    const stale = !an || (an.round !== b.round && ph.name === 'done');
+    if (!winnerKey && stale) { const la = S.lastAction; if (la && la.actor && now < la.t0 + (la.animDur || 0) * 1000 && C.alive(la.actor)) winnerKey = 'u' + la.actor.aid; }
+    if (winnerKey) T.winner = winnerKey;
+    const wk = (an && an.winner) || winnerKey || T.winner;
+
+    // 연출 시작 직전 칸 위치를 기억해 두고(진입 단계의 출발점), 새로 생긴 칸은 왼쪽 화면 밖에서 출발한다
+    const idlePos = (it) => T.pos.get(it.key) || null;
+    if (an && ph.name !== 'wait' && !an.start) { an.start = new Map(); for (const it of items) an.start.set(it.key, idlePos(it)); an.winner = wk; }
+    const startOf = (it) => (an && an.start && an.start.get(it.key)) || idlePos(it) || { x: -2000, y: trackY(it.ally), s: AP_TRACK.SCALE };
+
+    const placed = new Map();
+    const animating = an && ph.name !== 'wait' && ph.name !== 'done';
+    if (animating) {
+      const racing = an.phases.some((p) => p.name === 'advance');
+      const lineup = lineupLayout(wk), fin = finalLayout(wk);
+      for (const it of items) {
+        const st = startOf(it); let p;
+        if (ph.name === 'entry') p = mix(st, apPos(it, it.pre), easeInOut(ph.p));
+        else if (ph.name === 'advance') p = apPos(it, lerp(it.pre, it.cur, ph.p));
+        else if (ph.name === 'hold') p = apPos(it, it.cur);
+        else if (ph.name === 'lineup') p = mix(racing ? apPos(it, it.cur) : st, lineup.get(it.key), easeOut(ph.p));
+        else p = mix(lineup.get(it.key), fin.get(it.key), easeOut(ph.p));
+        placed.set(it.key, p); T.pos.set(it.key, p);
+      }
+    } else if (an && ph.name === 'done' && !stale) {
+      const fin = finalLayout(wk);
+      for (const it of items) { const p = fin.get(it.key); placed.set(it.key, p); T.pos.set(it.key, p); }
+    } else {
+      // 대기 중(라운드 시작 대기·행동 재생·연출 없는 라운드): 기억한 칸 위치 유지. 연출 없는 라운드가 바뀌었으면 최종 배치로 바로 정렬
+      const fin = stale && (winnerKey || !an) ? finalLayout(wk) : null;
+      let newN = 0;
+      for (const it of items) {
+        let p = T.pos.get(it.key);
+        if (fin && (p || !T.enter.has(it.key))) p = fin.get(it.key);
+        if (!p) { // PlayApTrackWaitingSlotEntry: 진영별 생성 순서 대기 칸으로 왼쪽 화면 밖에서 입장
+          let en = T.enter.get(it.key);
+          if (!en) {
+            const idx = items.filter((o) => o.ally === it.ally && o !== it && (T.pos.has(o.key) || T.enter.has(o.key))).length;
+            en = { t0: now + newN++ * AP_TRACK.WAVE_INTERVAL * C.timeScale() * 1000, dur: Math.max(1, AP_TRACK.WAVE_ENTRY * C.timeScale() * 1000), to: slotPos(it, idx) };
+            T.enter.set(it.key, en);
+          }
+          const k = clamp01((now - en.t0) / en.dur);
+          p = mix({ x: -2000, y: en.to.y, s: AP_TRACK.SCALE }, en.to, easeOut(k));
+          if (k >= 1) { T.pos.set(it.key, en.to); T.enter.delete(it.key); }
+        } else T.pos.set(it.key, p);
+        placed.set(it.key, p);
+      }
+    }
+    for (const k of Array.from(T.pos.keys())) if (!byKey.has(k)) { T.pos.delete(k); T.enter.delete(k); }
+
+    const showSelect = wk && byKey.has(wk) && !animating; // Tbar_select: 연출이 끝난 뒤 우승자 칸에만
     const tags = {}; let tagN = 0;
-    const items = units.map((u) => {
-      const ally = C.isPC(u) || (u.type === 'SUMMON' && u.team === 1);
-      let x, y;
-      if (u === winner) { x = AP_TRACK.RIGHT_X; y = AP_TRACK.FIRST_Y; }
-      else { const leftX = 100 - W / 2 - ax; x = leftX + (fullX - leftX) * (apOf(u) / 100); y = ally ? AP_TRACK.ALLY_Y : AP_TRACK.ENEMY_Y; }
-      return { u, x, y, ally };
-    }).sort((p, q) => p.x - q.x);
-    for (const it of items) {
-      const u = it.u, face = faceImg(u);
+    const order = items.slice().sort((p, q) => placed.get(p.key).x - placed.get(q.key).x); // 오른쪽 칸이 위에 그려지도록
+    for (const it of order) {
+      const u = it.u, face = faceImg(u), p = placed.get(it.key);
       const tag = C.isMob(u) ? (tags[u.key] === undefined ? (tags[u.key] = String.fromCharCode(65 + tagN++)) : tags[u.key]) : '';
-      const mk = markers.find((x) => x.enemy === u);
+      const mk = !it.reserve && markers.find((x) => x.enemy === u);
+      const ap = gaugeAp(it.pre, it.cur, ph);
       const ov = {
         'UIBattleCreature/TbarIcon': { texture: face, circle: true, fillStyle: face ? undefined : (it.ally ? '#2a4d3a' : '#4d2a2a'), hit: { kind: 'unit', data: u } },
         'TbarIcon/uiLable': { active: false }, 'TbarIcon/taget_label': { text: tag, active: !!tag },
-        'TbarIcon/Tbar_select': { active: u === winner && !animating },
+        'TbarIcon/Tbar_select': { active: !!showSelect && it.key === wk },
         'TbarIcon/Tbar_outline': { color: it.ally ? [1, 0.7655, 0, 1] : [1, 0.35, 0.3, 1] },
-        'TbarIcon/texDelaySkill': { active: false },
+        'TbarIcon/texDelaySkill': { active: !!it.reserve, texture: it.reserve ? skillImg(C.skillIcon(it.reserve.skillKey)) : null, circle: true },
         'TbarIcon/ActionBubble': { active: !!mk }, 'ActionBubble/ActionBubble_skillIcon': { active: !!mk, texture: mk ? skillImg(mk.icon) : null, circle: true },
         'ActionBubble/ActionBubble_disable': { active: false }, 'ActionBubble_disable/ActionBubble_disable (1)': { active: false },
-        'TurnAp/Top': { active: false }, 'Bottom/Bg/spCur': { fill: apOf(u) / 100 }, 'Bottom/Bg/spUse': { active: false },
+        'TurnAp/Top': { active: false }, 'Bottom/Bg/spCur': { fill: clamp01(ap / 100) }, 'Bottom/Bg/spUse': { active: false },
         'TbarIcon/UI_Cha_select_icon_Enemy': { active: false }, 'TbarIcon/UI_Cha_select_icon_player2': { active: false }, 'TbarIcon/UI_ATK_Confirm': { active: false },
       };
       if (!C.optOn('hud', 'apBars')) ov['UIBattleCreature/TurnApEffect'] = { active: false };
-      UI.draw(ctx, lay, { W, H, ox: ax + it.x, oy: ay + it.y, scale: AP_TRACK.SCALE, ov, hit: hitFromUi });
+      UI.draw(ctx, lay, { W, H, ox: ax + p.x, oy: ay + p.y, scale: p.s || AP_TRACK.SCALE, ov, hit: hitFromUi });
     }
     const manual = S.manual;
-    if (C.sysOn('skillReturnPreview') && C.sysOn('skillApReturn') && manual && manual.mode === 'skill' && manual.skill && winner === manual.unit) {
+    const winnerUnit = wk && byKey.has(wk) ? byKey.get(wk).u : null;
+    if (C.sysOn('skillReturnPreview') && C.sysOn('skillApReturn') && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {
       const cost = num(manual.skill.levelTable, 'NeedActionPoint');
       const percent = Math.max(0, Math.min(100, 100 - cost * 10));
-      const leftX = 100 - W / 2 - ax;
-      const returnX = leftX + (fullX - leftX) * percent / 100;
+      const returnX = apX(percent);
       const ally = C.isPC(manual.unit) || manual.unit.team === 1;
-      const faceWidget = UI.find('tbar', 'UIBattleCreature/TbarIcon');
-      const rect = faceWidget ? faceWidget.rect : [-120, -60, 0, 60];
-      const cx = W / 2 + ax + returnX + (rect[0] + rect[2]) / 2 * AP_TRACK.SCALE;
-      const cy = H / 2 - ay - (ally ? AP_TRACK.ALLY_Y : AP_TRACK.ENEMY_Y) - (rect[1] + rect[3]) / 2 * AP_TRACK.SCALE;
-      const radius = Math.abs(rect[2] - rect[0]) * AP_TRACK.SCALE / 2;
+      const cx = W / 2 + ax + returnX + (fr[0] + fr[2]) / 2 * AP_TRACK.SCALE;
+      const cy = H / 2 - ay - trackY(ally) - (fr[1] + fr[3]) / 2 * AP_TRACK.SCALE;
+      const radius = Math.abs(fr[2] - fr[0]) * AP_TRACK.SCALE / 2;
       ctx.save();
       ctx.strokeStyle = '#7ddcff'; ctx.fillStyle = 'rgba(70,180,255,0.18)'; ctx.lineWidth = 3;
       ctx.setLineDash([7, 5]); ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
