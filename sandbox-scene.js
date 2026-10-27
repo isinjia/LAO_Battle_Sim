@@ -686,11 +686,27 @@
     const sc = Math.min(1, (W - 100) / 1700, (H - 420) / 600);
     const ox = pt.x - W / 2, oy = H / 2 - pt.y;
     // 효과 아이콘(UIBuffIcon 35x35, TableBuffIcon: 4열·아래 방향·왼쪽 위 기준·여백 1.25). 7개까지, 넘치면 BuffOverSp 에 남은 수
-    const list = (u.buffs || []).slice().sort((a, b) => (b.key === BUFF_PRIORITY) - (a.key === BUFF_PRIORITY));
+    const showSkills = C.sysOn('skillIcons');
+    const list = showSkills ? [] : (u.buffs || []).slice().sort((a, b) => (b.key === BUFF_PRIORITY) - (a.key === BUFF_PRIORITY));
     const over = list.length > 7;
     ov['Wrapper/BuffOverSp'] = { active: over }; ov['BuffOverSp/BuffOverLb'] = { text: over ? String(list.length - 7) : '' };
     UI.draw(ctx, lay, { W, H, ox, oy, scale: sc, ov });
     const tbl = selected ? [15.9, -19.1] : [7.9, -6], ER = C.E.BUFFEFFECT_ERASE_TYPE, pad = 1.25, size = 35, pitch = size + pad * 2;
+    const at = (col, row) => ({ x: W / 2 + ox + (tbl[0] + pad + size / 2 + col * pitch) * sc, y: H / 2 - oy - (tbl[1] - pad - size / 2 - row * pitch) * sc });
+    if (showSkills) { // 시험: 효과 아이콘 자리에 스킬 아이콘(1·2번 스킬, 선택 시 지속 효과 스킬). 재사용 대기 중이면 어둡게 + 남은 턴
+      const act = C.activeSkills(u).slice().sort((a, b) => C.slotOf(a) - C.slotOf(b));
+      const pas = C.optOn('skillIcons', 'passive') ? (u.skills || []).filter((s) => num(s.table, 'SkillType') === 1) : [];
+      act.concat(pas).forEach((sk, i) => {
+        const q = at(i % 4, Math.floor(i / 4)), d = size * sc, im = skillImg(C.skillIcon(sk.key)), cd = sk.cooldownLeft > 0;
+        ctx.save(); ctx.globalAlpha = cd ? 0.45 : 1;
+        ctx.beginPath(); ctx.arc(q.x, q.y, d / 2, 0, Math.PI * 2); ctx.fillStyle = '#101216'; ctx.fill();
+        if (im) circleClip(ctx, im, q.x, q.y, d - 2 * sc);
+        ctx.beginPath(); ctx.arc(q.x, q.y, d / 2 - 1, 0, Math.PI * 2); ctx.strokeStyle = num(sk.table, 'SkillType') === 1 ? '#8fa3b8' : '#e8b830'; ctx.lineWidth = 2 * sc; ctx.stroke();
+        ctx.restore();
+        if (cd) text(ctx, String(sk.cooldownLeft), q.x, q.y + 1, { size: 22 * sc, align: 'center', color: '#fff' });
+      });
+      return;
+    }
     let n = 0;
     for (const bf of list.slice(0, 7)) {
       const name = (C.ICONS.buff[bf.key] || [])[bf.sortIndex - 1]; if (!name) continue; // 아이콘 없는 효과는 표에서 빠진다(ignoreTabel)
