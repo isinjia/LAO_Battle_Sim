@@ -708,23 +708,24 @@
     const ox = pt.x - W / 2, oy = H / 2 - pt.y;
     // 효과 아이콘(UIBuffIcon 35x35, TableBuffIcon: 4열·아래 방향·왼쪽 위 기준·여백 1.25). 7개까지, 넘치면 BuffOverSp 에 남은 수
     const showSkills = C.sysOn('skillIcons');
-    const list = showSkills ? [] : (u.buffs || []).slice().sort((a, b) => (b.key === BUFF_PRIORITY) - (a.key === BUFF_PRIORITY));
-    const over = list.length > 7;
-    ov['Wrapper/BuffOverSp'] = { active: over }; ov['BuffOverSp/BuffOverLb'] = { text: over ? String(list.length - 7) : '' };
+    const list = (u.buffs || []).slice().sort((a, b) => (b.key === BUFF_PRIORITY) - (a.key === BUFF_PRIORITY));
+    const groups = showSkills ? buffSources(list) : null;
+    const count = groups ? groups.length : list.length, over = count > 7;
+    ov['Wrapper/BuffOverSp'] = { active: over }; ov['BuffOverSp/BuffOverLb'] = { text: over ? String(count - 7) : '' };
     UI.draw(ctx, lay, { W, H, ox, oy, scale: sc, ov });
     const tbl = selected ? [15.9, -19.1] : [7.9, -6], ER = C.E.BUFFEFFECT_ERASE_TYPE, pad = 1.25, size = 35, pitch = size + pad * 2;
     const at = (col, row) => ({ x: W / 2 + ox + (tbl[0] + pad + size / 2 + col * pitch) * sc, y: H / 2 - oy - (tbl[1] - pad - size / 2 - row * pitch) * sc });
-    if (showSkills) { // 시험: 효과 아이콘 자리에 스킬 아이콘(1·2번 스킬, 선택 시 지속 효과 스킬). 재사용 대기 중이면 어둡게 + 남은 턴
-      const act = C.activeSkills(u).slice().sort((a, b) => C.slotOf(a) - C.slotOf(b));
-      const pas = C.optOn('skillIcons', 'passive') ? (u.skills || []).filter((s) => num(s.table, 'SkillType') === 1) : [];
-      act.concat(pas).forEach((sk, i) => {
-        const q = at(i % 4, Math.floor(i / 4)), d = size * sc, im = skillImg(C.skillIcon(sk.key)), cd = sk.cooldownLeft > 0;
-        ctx.save(); ctx.globalAlpha = cd ? 0.45 : 1;
+    const lastTurn = (bf) => (bf.eraseType === ER.ROUND || bf.eraseType === ER.TURN) && bf.left <= 1 && num(bf.row, 'BuffEffectLeftCount' + bf.sortIndex) !== 0;
+    const blinkA = () => { const ph = (performance.now() / 800) % 2; return 1 - 0.7 * (ph < 1 ? ph : 2 - ph); }; // TweenAlpha 1 → 0.3 (0.8초 왕복)
+    if (groups) { // 시험: 효과 아이콘 대신 그 효과를 건 스킬 아이콘(정보창 새 방식과 같은 묶음: 같은 효과·시전자·남은 턴). 2중첩 이상이면 중첩 수
+      groups.slice(0, 7).forEach((e, i) => {
+        const q = at(i % 4, Math.floor(i / 4)), d = size * sc, im = e.icon ? skillImg(e.icon) : null;
+        ctx.save(); ctx.globalAlpha = e.buffs.some(lastTurn) ? blinkA() : 1;
         ctx.beginPath(); ctx.arc(q.x, q.y, d / 2, 0, Math.PI * 2); ctx.fillStyle = '#101216'; ctx.fill();
         if (im) circleClip(ctx, im, q.x, q.y, d - 2 * sc);
-        ctx.beginPath(); ctx.arc(q.x, q.y, d / 2 - 1, 0, Math.PI * 2); ctx.strokeStyle = num(sk.table, 'SkillType') === 1 ? '#8fa3b8' : '#e8b830'; ctx.lineWidth = 2 * sc; ctx.stroke();
+        ctx.beginPath(); ctx.arc(q.x, q.y, d / 2 - 1, 0, Math.PI * 2); ctx.strokeStyle = e.debuff ? '#e0483a' : '#3fa9f5'; ctx.lineWidth = 2 * sc; ctx.stroke();
         ctx.restore();
-        if (cd) text(ctx, String(sk.cooldownLeft), q.x, q.y + 1, { size: 22 * sc, align: 'center', color: '#fff' });
+        if (e.stack > 1) text(ctx, String(e.stack), q.x + d * 0.36, q.y + d * 0.34, { size: 15 * sc, align: 'center', color: '#fff' });
       });
       return;
     }
@@ -741,6 +742,24 @@
     }
   }
   const BUFF_PRIORITY = 'Effect_MP_Ravager_Challenge4_1'; // Const.BuffPriorityText: 항상 첫 칸
+  // 시험 '체력 막대 밑 효과를 스킬 아이콘으로': 걸린 효과를 정보창 새 방식처럼 같은 효과·시전자·남은 턴으로 묶고,
+  //  아이콘은 효과 그룹(BuffEffectGroup)의 스킬 아이콘, 그룹이 없으면 그 효과를 건 스킬의 아이콘
+  function buffSources(list) {
+    const dd = window.DETAIL && DETAIL.data, out = [], idx = new Map();
+    for (const bf of list) {
+      const k = bf.key + '|' + bf.fromAid + '|' + bf.left;
+      let e = idx.get(k);
+      if (!e) {
+        const ek = dd && ((dd.effectGroupOf || {})[bf.key] || str(bf.row || {}, 'BuffEffectGroup'));
+        const g = ek && dd.effectGroups && dd.effectGroups[ek];
+        const icon = g && g.icon && g.icon !== '0' ? g.icon : bf.skillKey ? C.skillIcon(bf.skillKey) : null;
+        idx.set(k, e = { buffs: [], icon, debuff: num(bf.row || {}, 'BuffAttrType') === 1 }); out.push(e);
+      }
+      e.buffs.push(bf);
+    }
+    for (const e of out) { const c = {}; for (const b of e.buffs) c[b.sortIndex] = (c[b.sortIndex] || 0) + 1; e.stack = Math.max(...Object.values(c)); }
+    return out;
+  }
   // 몬스터 구분 글자(Creature.GetUIIdentifier + Common.NumberToAlphabet): 전투에 들어온 몬스터 순번, 한 번 정하면 자리를 옮겨도 유지
   function monsterTag(u) {
     if (!C.isMob(u)) return '';
