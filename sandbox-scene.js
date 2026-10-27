@@ -64,7 +64,7 @@
     W = +(C.setup.aspect || 1920); if (window.UI) { UI.width = W; UI.height = H; }
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.className = 'scene-canvas';
     host.appendChild(cv); SCENE.canvas = cv; SCENE.ctx = cv.getContext('2d');
-    const toLocal = (ev) => { const r = cv.getBoundingClientRect(); return { x: (ev.clientX - r.left) * W / r.width, y: (ev.clientY - r.top) * H / r.height }; };
+    const toLocal = (ev) => { const r = window.VIEW ? VIEW.rect(cv) : cv.getBoundingClientRect(), p = window.VIEW ? VIEW.point(ev) : { x: ev.clientX, y: ev.clientY }; return { x: (p.x - r.left) * W / r.width, y: (p.y - r.top) * H / r.height }; };
     cv.addEventListener('mousemove', (ev) => { SCENE.mouse = toLocal(ev); const h = hitAt(SCENE.mouse); cv.style.cursor = h ? h.cursor : 'default'; onHover(h); });
     cv.addEventListener('mouseleave', () => { SCENE.mouse = { x: -1, y: -1 }; onHover(null); });
     cv.addEventListener('mousedown', (ev) => { if (ev.button !== 0) return; SCENE.pressAt = toLocal(ev); });

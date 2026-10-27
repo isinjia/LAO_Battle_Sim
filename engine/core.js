@@ -2,7 +2,7 @@
 // Ported from the Unity client (E:\LAO\1_Onestre_QA\Assets\_Scripts), battle renewal path
 // (BEFORE_BATTLE_RENEWAL NOT defined). Plain script (no ES modules): every module attaches to window.LOSim.
 //
-// Load order (index.html and tools/node_harness.js):
+// Load order (sim.html and tools/node_harness.js):
 //   enums.js, core.js, stats.js, buffs.js, combat.js, ai.js, battle.js
 //
 // Module ownership / contracts (each file exports onto LOSim.<name>):

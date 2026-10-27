@@ -17,7 +17,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo LO Battle Simulator: http://localhost:%PORT%
+echo LO Battle Simulator: http://localhost:%PORT%/sim.html
 echo Close this window to stop the server.
-start "" "http://localhost:%PORT%"
+start "" "http://localhost:%PORT%/sim.html"
 python "%~dp0tools\serve.py" %PORT%

@@ -27,7 +27,7 @@ def build():
     if OUT.exists() and '--refresh' not in sys.argv:
         raise SystemExit('출력 폴더가 이미 있습니다. 기존 자료를 보존하기 위해 중단합니다.')
     OUT.mkdir(exist_ok=True)
-    for file in ['sandbox.html', 'sandbox-core.js', 'sandbox-panels.js', 'sandbox-scene.js', 'sandbox-sd.js', 'sandbox-ui.js', 'sandbox-wm.js', 'sd/sd.js']:
+    for file in ['sandbox.html', 'sandbox-core.js', 'sandbox-panels.js', 'sandbox-scene.js', 'sandbox-sd.js', 'sandbox-ui.js', 'sandbox-wm.js', 'sandbox-help.js', 'sandbox-view.js', 'sd/sd.js']:
         copy(file)
     for file in (SRC / 'engine').glob('*.js'):
         copy(file.relative_to(SRC))

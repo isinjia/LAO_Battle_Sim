@@ -1,4 +1,4 @@
-"""Local server for the simulator: serves _BattleSim with UTF-8 charsets (index.html has no <meta charset>,
+"""Local server for the simulator: serves _BattleSim with UTF-8 charsets (sim.html has no <meta charset>,
 because the claude.ai artifact skeleton adds one; a plain http.server would make browsers guess EUC-KR).
 Usage: python tools/serve.py [port]"""
 import http.server, os, sys

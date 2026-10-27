@@ -34,13 +34,15 @@
     WM.wins[spec.id] = win; WM.order.push(spec.id);
     // 끌어서 이동
     const title = el.querySelector('.win-title');
-    title.addEventListener('mousedown', (ev) => {
-      if (ev.target.closest('.win-tools')) return;
+    const pt = (e) => window.VIEW ? VIEW.point(e) : { x: e.clientX, y: e.clientY };
+    title.addEventListener('pointerdown', (ev) => {
+      if (ev.target.closest('.win-tools') || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
       WM.front(win);
-      const sx = ev.clientX - win.x, sy = ev.clientY - win.y;
-      const mv = (e) => { win.x = e.clientX - sx; win.y = e.clientY - sy; WM.apply(win); };
-      const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); WM.save(); };
-      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); ev.preventDefault();
+      const p0 = pt(ev), sx = p0.x - win.x, sy = p0.y - win.y;
+      const mv = (e) => { if (e.pointerId !== ev.pointerId) return; const p = pt(e); win.x = p.x - sx; win.y = p.y - sy; WM.apply(win); };
+      const up = (e) => { if (e.pointerId !== ev.pointerId) return; title.removeEventListener('pointermove', mv); title.removeEventListener('pointerup', up); title.removeEventListener('pointercancel', up); if (title.hasPointerCapture(ev.pointerId)) title.releasePointerCapture(ev.pointerId); WM.save(); };
+      title.addEventListener('pointermove', mv); title.addEventListener('pointerup', up); title.addEventListener('pointercancel', up);
+      title.setPointerCapture(ev.pointerId); ev.preventDefault();
     });
     title.addEventListener('dblclick', (ev) => { if (ev.target.closest('.win-tools')) return; WM.toggleMin(win); });
     el.addEventListener('mousedown', () => WM.front(win));
@@ -48,14 +50,14 @@
     el.querySelectorAll('.win-resize').forEach(handle => handle.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0 || win.min) return;
       WM.front(win);
-      const dir = handle.dataset.dir, sx = ev.clientX, sy = ev.clientY;
+      const p0 = pt(ev), dir = handle.dataset.dir, sx = p0.x, sy = p0.y;
       const x0 = win.x, y0 = win.y, w0 = win.w, h0 = win.h;
       const minW = spec.minW || 240, minH = spec.minH || 120;
       const oldCursor = document.body.style.cursor, oldSelect = document.body.style.userSelect;
       document.body.style.cursor = getComputedStyle(handle).cursor; document.body.style.userSelect = 'none';
       const mv = (e) => {
         if (e.pointerId !== ev.pointerId) return;
-        const dx = e.clientX - sx, dy = e.clientY - sy;
+        const p = pt(e), dx = p.x - sx, dy = p.y - sy;
         if (dir.includes('e')) win.w = Math.max(minW, w0 + dx);
         if (dir.includes('w')) { win.w = Math.max(minW, w0 - dx); win.x = x0 + w0 - win.w; }
         if (dir.includes('s')) win.h = Math.max(minH, h0 + dy);
