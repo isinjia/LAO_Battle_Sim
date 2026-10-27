@@ -89,7 +89,7 @@
     }
     ctx.restore();
   }
-  // 위젯 목록 그리기. opts: {W, H (캔버스 크기), ox, oy (설계 좌표 이동), scale, ov: {경로끝: {active, text, sprite, color, fill, alpha, texture(img|canvas), circle, move:[dx,dy]}}, hit(o, rect)}
+  // 위젯 목록 그리기. opts: {W, H (캔버스 크기), ox, oy (설계 좌표 이동), scale, ov: {경로끝: {active, text, sprite, color, fill, alpha, texture(img|canvas), circle, move:[dx,dy], rect(EnvelopContent 처럼 크기를 바꿀 때)}}, hit(o, rect)}
   UI.draw = function (ctx, widgets, opts) {
     const W = opts.W, H = opts.H, s = opts.scale || 1, ox = opts.ox || 0, oy = opts.oy || 0, ov = opts.ov || {};
     const rules = Object.keys(ov);
@@ -103,19 +103,27 @@
       for (const k of groupRules) { if (o.path.includes(k + '/') || o.path.endsWith(k)) { const g = ov[k]; if (g.active === false) active = false; if (g.active === true && o.path.endsWith(k)) active = true; if (g.move) { dx += g.move[0]; dy += g.move[1]; } if (g.groupAlpha !== undefined) galpha *= g.groupAlpha; } }
       if (self.active !== undefined) active = self.active;
       if (!active) continue;
-      const r = o.rect; const x = W / 2 + ox + (r[0] + dx) * s, y = H / 2 - oy - (r[3] + dy) * s, w = (r[2] - r[0]) * s, h = (r[3] - r[1]) * s;
+      const r = self.rect || o.rect; let x = W / 2 + ox + (r[0] + dx) * s, y = H / 2 - oy - (r[3] + dy) * s, w = (r[2] - r[0]) * s, h = (r[3] - r[1]) * s;
       const color = self.color || o.color || [1, 1, 1, 1]; const alpha = (self.alpha !== undefined ? self.alpha : color[3]) * galpha;
+      // 회전·뒤집힌 위젯(o.m 2x2 행렬, o.org 기준점, o.lrect 자기 좌표 사각형): 캔버스를 그 행렬로 돌려 자기 좌표에 그린다. 누르기 영역은 외곽 사각형.
+      const hx = x, hy = y, hw = w, hh = h;
+      if (o.m) {
+        const m = o.m, lr = o.lrect; ctx.save();
+        ctx.transform(s * m[0], -s * m[2], -s * m[1], s * m[3], W / 2 + ox + (o.org[0] + dx) * s, H / 2 - oy - (o.org[1] + dy) * s);
+        x = lr[0]; y = -lr[3]; w = lr[2] - lr[0]; h = lr[3] - lr[1];
+      }
       if (o.kind === 'sprite') {
         const name = self.sprite || o.sprite; const isWhite = color[0] > 0.98 && color[1] > 0.98 && color[2] > 0.98;
         drawSprite(ctx, Object.assign({}, o, { sprite: name }), x, y, w, h, isWhite ? null : rgb(color), alpha, self.fill !== undefined ? self.fill : o.fill, o.flip);
       } else if (o.kind === 'label') {
-        if (self.text !== undefined && self.text !== null) drawLabel(ctx, o, x, y, w, h, self.text, color, alpha, s * (o.scale ? o.scale[0] : 1));
-        else if (o.text && !self.hideText) drawLabel(ctx, o, x, y, w, h, o.text, color, alpha, s * (o.scale ? o.scale[0] : 1));
+        if (self.text !== undefined && self.text !== null) drawLabel(ctx, o, x, y, w, h, self.text, color, alpha, o.m ? 1 : s * (o.scale ? o.scale[0] : 1));
+        else if (o.text && !self.hideText) drawLabel(ctx, o, x, y, w, h, o.text, color, alpha, o.m ? 1 : s * (o.scale ? o.scale[0] : 1));
       } else if (o.kind === 'texture') {
         if (self.texture) { ctx.save(); ctx.globalAlpha = alpha; if (self.circle) { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2); ctx.clip(); } ctx.drawImage(self.texture, x, y, w, h); ctx.restore(); }
         else if (self.fillStyle) { ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = self.fillStyle; ctx.fillRect(x, y, w, h); ctx.restore(); }
       }
-      if (self.hit && opts.hit) opts.hit(o, { x, y, w, h }, self.hit);
+      if (o.m) ctx.restore();
+      if (self.hit && opts.hit) opts.hit(o, { x: hx, y: hy, w: hw, h: hh }, self.hit);
     }
   };
   // 라벨 한 줄을 그 라벨의 글꼴·정렬로 그린다(정보창의 여러 줄 설명처럼 줄을 직접 나눠 그릴 때)

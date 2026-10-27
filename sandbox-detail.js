@@ -38,9 +38,11 @@
   DETAIL.canOpen = (u) => !!(u && C.S.battle && !C.S.result && u.hp > 0);
   DETAIL.open = function (u) {
     if (!DETAIL.canOpen(u)) return false;
-    DETAIL.unit = u; DETAIL.tab = 'skill'; DETAIL.skill = 0; DETAIL.filter = 0; DETAIL.scroll = 0; DETAIL.descScroll = 0; DETAIL.mobScroll = 0; DETAIL.closed = new Set();
+    DETAIL.unit = u; DETAIL.tab = 'skill'; DETAIL.skill = 0; DETAIL.filter = 0; DETAIL.fNew = 0; DETAIL.scroll = 0; DETAIL.descScroll = 0; DETAIL.mobScroll = 0; DETAIL.closed = new Set();
     return true;
   };
+  // 효과 목록 보기 방식(원작 옵션, 기본은 일반 방식). 창을 닫았다 열어도 유지한다.
+  try { DETAIL.newType = localStorage.getItem('sandbox.detailBuffNewType') === '1'; } catch (e) { DETAIL.newType = false; }
   DETAIL.close = function () { DETAIL.unit = null; };
 
   // ---------------------------------------------------------------- 값 만들기
@@ -202,15 +204,17 @@
     ov['SkillInfo/ScrollSkillDesc/SkillDescLb'] = { hideText: true };
     // 몬스터 정보 (Mob_Info)
     ov['ScrollView/infoText'] = { hideText: true };
-    // 효과 목록 탭 (일반 방식: 전체/강화/해로움/일반)
-    const tabs = ['BtnBuffInfoAll', 'BtnBuffInfoBuff', 'BtnBuffInfoDeBuff', 'BtnBuffInfoEtc'], keys = [null, '2000487', '2000488', '2000489'];
+    // 효과 목록 탭 (SetBuffGroupInfoUIType): 일반 방식 전체/강화/해로움/일반, 새 방식 전체/아군/적군/전장. 필터는 방식마다 따로 기억한다.
+    const nt = DETAIL.newType, fi = nt ? DETAIL.fNew : DETAIL.filter;
+    const tabs = ['BtnBuffInfoAll', 'BtnBuffInfoBuff', 'BtnBuffInfoDeBuff', 'BtnBuffInfoEtc'], keys = nt ? [null, '1442', '1443', '1444'] : [null, '2000487', '2000488', '2000489'];
     tabs.forEach((t, i) => {
       ov['TabBtns/' + t] = { hit: { act: 'filter', i } };
-      ov[t + '/On'] = { active: DETAIL.filter === i };
+      ov[t + '/On'] = { active: fi === i };
       if (keys[i]) { ov[t + '/TitleLb'] = { text: loc(keys[i]) }; ov[t + '/On/TitleLb'] = { text: loc(keys[i]) }; }
     });
-    ov['BuffStatus/BuffViewTypeDescLb'] = { text: loc(String(2000490 + DETAIL.filter)) };
-    ov['Scroll/BuffGroupInfoUINewType'] = { active: false };
+    ov['BuffStatus/BuffViewTypeDescLb'] = { text: loc(nt ? ['1445', '1446', '1447', '1448'][fi] : String(2000490 + fi)) }; // RefreshBuffInfo
+    ov['Scroll/BuffGroupInfoUINormalType'] = { active: !nt };
+    ov['Scroll/BuffGroupInfoUINewType'] = { active: nt };
     ov['BuffStatus/ChangeBtn'] = { hit: { act: 'change' } };
     UI.draw(ctx, lay, { W, H, ox: 0, oy: 0, scale: 1, ov, hit: uiHit });
 
@@ -228,7 +232,7 @@
         drawLines(ctx, W, H, o, lines, CLIP_MOB, DETAIL.mobScroll = Math.min(DETAIL.mobScroll, DETAIL.mobMax));
       }
     }
-    drawBuffList(ctx, W, H, u, hit);
+    if (nt) drawBuffListNew(ctx, W, H, u); else drawBuffList(ctx, W, H, u, hit);
   };
   // 왼쪽 위 기준 여러 줄 라벨
   function drawLines(ctx, W, H, o, lines, clip, scroll) {
@@ -277,6 +281,74 @@
     ctx.restore();
   }
 
+  // 효과 목록 새 방식 (InitBuffInfoNewType + UIBattleBuffGroupInfo_NewType)
+  //  같은 효과·같은 시전자·같은 남은 턴을 한 묶음으로, 효과 그룹(BuffEffectGroup)이 있는 효과만. 묶음마다 그룹 이름·스킬 아이콘·설명 줄(효과 칸별)·
+  //  중첩 수·남은 턴·시전 전투원 얼굴. 배경(Bg/BgSp)은 내용에 맞춰 늘어난다(EnvelopContent 위 24, 아래 -1).
+  const NEW_COLOR = { 0: [0.2667, 0.851, 0.2118, 1], 1: [0.949, 0.149, 0.149, 1], 3: [1, 1, 1, 1] };
+  const ENV_TOP = 24, ENV_BOTTOM = -1;
+  function newGroups(u) {
+    const out = [], idx = new Map();
+    for (const bf of u.buffs || []) {
+      const ek = DETAIL.data.effectGroupOf[bf.key] || str(bf.row || {}, 'BuffEffectGroup');
+      const g = ek && DETAIL.data.effectGroups[ek]; if (!g) continue;
+      const k = bf.key + '|' + bf.fromAid + '|' + bf.left;
+      let e = idx.get(k); if (!e) { idx.set(k, e = { g, buffs: [] }); out.push(e); }
+      e.buffs.push(bf);
+    }
+    return out;
+  }
+  function newVisible(u, g, fi) {
+    let src = g.type;
+    if (!isPC(u) && (src === 0 || src === 1)) src = 1 - src; // 0/1 은 시전 측: 대상 기준 아군/적군으로 바꾼다
+    return fi === 0 || src === fi - 1;
+  }
+  function drawBuffListNew(ctx, W, H, u) {
+    const lay = UI.layout('buffgroup2'); if (!lay.length) return;
+    const R = 'UIBattleBuffGroupInfo_NewType/Pos/', CT = R + 'Content';
+    const items = newGroups(u).filter((e) => newVisible(u, e.g, DETAIL.fNew));
+    ctx.save(); clipRect(ctx, W, H, CLIP_BUFF);
+    let cursor = 0; const drawList = [];
+    for (const e of items) {
+      const bf0 = e.buffs[0], row = bf0.row || L.T('Table_BuffEffect', bf0.key) || {};
+      const descs = (DETAIL.desc.buffs[bf0.key] || {}).d || [];
+      const ov = {};
+      ov[CT + '/GroupNameLb'] = { text: e.g.name };
+      // 설명 줄: 설명이 있고 확률이 0보다 큰 효과 칸만 차례로 (SetBuffDescriptions)
+      let li = 0; const at = num(row, 'BuffAttrType');
+      for (let i = 0; i < 5; i++) {
+        const desc = descs[i]; if (!desc || desc === '0' || !(parseFloat(str(row, 'BuffEffectRate' + (i + 1), '0')) > 0) || li >= 5) continue;
+        const applied = e.buffs.find((b) => b.sortIndex === i + 1);
+        li++; showTree(ov, lay, CT + '/BuffInfoLb_' + li, true);
+        Object.assign(ov[CT + '/BuffInfoLb_' + li], { text: ngui(applied ? buffDescText(u, applied) : desc), color: NEW_COLOR[at] });
+      }
+      for (let j = li + 1; j <= 5; j++) showTree(ov, lay, CT + '/BuffInfoLb_' + j, false);
+      ov[CT + '/BuffIcon'] = { texture: e.g.icon && e.g.icon !== '0' ? img('ui/skill/' + e.g.icon + '.png') : null, circle: true };
+      const counts = {}; for (const b of e.buffs) counts[b.sortIndex] = (counts[b.sortIndex] || 0) + 1;
+      ov[CT + '/BuffIcon/TotalCountLb'] = { text: fmt(loc('1441', '{0} 중첩'), Math.max(...Object.values(counts))) };
+      const tbar = e.g.source && C.ICONS.pcTbar[e.g.source];
+      const face = tbar ? img('ui/tbar/' + tbar + '.png') : null;
+      showTree(ov, lay, CT + '/ChaIcon', !!tbar); // 얼굴이 없으면 얼굴 칸(남은 턴 글자 포함)을 끈다
+      if (tbar) { ov[CT + '/ChaIcon'].texture = face; ov[CT + '/ChaIcon/CountLb'].text = buffTime(bf0); }
+      // 켜진 내용 위젯의 외곽으로 배경 크기 맞춤, 묶음 전체 외곽으로 쌓기 높이
+      const on = (o) => { let a = o.active; for (const k of Object.keys(ov)) if ((o.path === k || o.path.startsWith(k + '/')) && ov[k].active !== undefined && (o.path === k || ov[k].active === false)) a = ov[k].active; return a; };
+      const box = (list) => list.reduce((b, o) => [Math.min(b[0], o.rect[0]), Math.min(b[1], o.rect[1]), Math.max(b[2], o.rect[2]), Math.max(b[3], o.rect[3])], [1e9, 1e9, -1e9, -1e9]);
+      const content = lay.filter((o) => o.kind !== 'node' && o.path.startsWith(CT + '/') && on(o));
+      const cb = box(content), bgO = lay.find((o) => o.path === R + 'Bg/BgSp');
+      if (bgO && content.length) ov[R + 'Bg/BgSp'] = { rect: [bgO.rect[0], cb[1] + ENV_BOTTOM, bgO.rect[2], cb[3] + ENV_TOP] };
+      const all = lay.filter((o) => o.kind !== 'node' && on(o)).map((o) => (ov[o.path] && ov[o.path].rect ? { rect: ov[o.path].rect } : o));
+      const ib = box(all);
+      drawList.push({ ov, top: ib[3], y: cursor });
+      cursor += (ib[3] - ib[1]) + GROUP_PAD * 2;
+    }
+    DETAIL.buffMax = Math.max(0, cursor - (CLIP_BUFF[3] - CLIP_BUFF[1]));
+    DETAIL.scroll = Math.min(DETAIL.scroll, DETAIL.buffMax);
+    for (const it of drawList) {
+      const oy = CLIP_BUFF[3] - it.y - GROUP_PAD + DETAIL.scroll - it.top;
+      UI.draw(ctx, lay, { W, H, ox: CLIP_BUFF[0], oy, scale: 1, ov: it.ov });
+    }
+    ctx.restore();
+  }
+
   // ---------------------------------------------------------------- 조작
   DETAIL.click = function (h) {
     const k = h && h.kind === 'detail' ? h.data : { act: 'close' };
@@ -285,9 +357,12 @@
       case 'close': DETAIL.close(); break;
       case 'skill': DETAIL.skill = k.i; DETAIL.descScroll = 0; break;
       case 'tab': DETAIL.tab = k.tab; break;
-      case 'filter': DETAIL.filter = k.i; DETAIL.scroll = 0; break;
+      case 'filter': if (DETAIL.newType) DETAIL.fNew = k.i; else DETAIL.filter = k.i; DETAIL.scroll = 0; break;
       case 'group': if (DETAIL.closed.has(k.name)) DETAIL.closed.delete(k.name); else DETAIL.closed.add(k.name); break;
-      case 'change': if (window.SCENE) SCENE.setStatus('효과 목록 새 방식 보기는 아직 지원하지 않습니다.'); break;
+      case 'change': // OnBtnBuffGroupInfoUIType: 일반 ↔ 새 방식, 설정으로 저장(GameOption.BattleBuffGroupInfoUITypeNormal)
+        DETAIL.newType = !DETAIL.newType; DETAIL.scroll = 0;
+        try { localStorage.setItem('sandbox.detailBuffNewType', DETAIL.newType ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
+        break;
       default: break;
     }
   };

@@ -23,7 +23,7 @@ PREFABS = {
 # UILocalize 키 → 한국어 문구 (NGUI 화면 문구: LocalizationPatch.xlsx 의 ko 열)
 LOC_XLSX = os.path.join(ASSETS, 'Localization', 'LocalizationPatch.xlsx')
 # 코드에서 Localization.Get/Format 으로 쓰는 화면 문구(정보창)
-CODE_LOC_KEYS = ['414', '1164', '421', '674', '1174', '201', '202', '203', '204', '205', '206', '2000244', '2000245', '2000490', '2000491', '2000492', '2000493', '1445', '1446', '1447', '1448', '2000487', '2000488', '2000489', '1442', '1443', '1444']
+CODE_LOC_KEYS = ['414', '1164', '421', '674', '1174', '201', '202', '203', '204', '205', '206', '2000244', '2000245', '1441', '2000490', '2000491', '2000492', '2000493', '1445', '1446', '1447', '1448', '2000487', '2000488', '2000489', '1442', '1443', '1444']
 LOC = {}
 
 def load_loc():
@@ -49,6 +49,8 @@ def load_loc():
             if k and ko: out[str(k).strip()] = ko.replace('\\n', '\n')
     return out
 SCREEN = [-960.0, -540.0, 960.0, 540.0]  # l, b, r, t (UIRoot 1920x1080)
+# 회전·뒤집기(m_LocalRotation)를 반영해 내보낼 배치. 전투 화면 배치는 기존 결과를 유지하려고 넣지 않는다.
+ROTATE_KEYS = {'detail', 'buffgroup', 'buffgroup2', 'buffdesc'}
 # 실행 중 트윈으로 옮겨지는 노드의 표시 상태(프리팹은 숨김 상태로 저장됨): 경로 끝 이름 -> (위치, 배율)
 RUNTIME_POSE = {'UI_penel_bottom/wrapper': ([-152.0, 60.0], [1.0, 1.0])}
 PIVOT = {0: (0, 1), 1: (0.5, 1), 2: (1, 1), 3: (0, 0.5), 4: (0.5, 0.5), 5: (1, 0.5), 6: (0, 0), 7: (0.5, 0), 8: (1, 0)}
@@ -72,9 +74,11 @@ def parse(path):
             g = re.search(r'm_GameObject: \{fileID: (\d+)\}', d); father = re.search(r'm_Father: \{fileID: (\d+)\}', d)
             lp = re.search(r'm_LocalPosition: \{x: ([-\d.e]+), y: ([-\d.e]+), z: ([-\d.e]+)\}', d)
             ls = re.search(r'm_LocalScale: \{x: ([-\d.e]+), y: ([-\d.e]+), z: ([-\d.e]+)\}', d)
+            lq = re.search(r'm_LocalRotation: \{x: ([-\d.e]+), y: ([-\d.e]+), z: ([-\d.e]+), w: ([-\d.e]+)\}', d)
             chs = d.split('m_Children:')[1].split('m_Father')[0] if 'm_Children:' in d else ''
             tr[fid] = {'go': g.group(1) if g else None, 'father': father.group(1) if father else '0',
                        'lp': [fnum(x) for x in lp.groups()] if lp else [0, 0, 0], 'ls': [fnum(x, 1) for x in ls.groups()] if ls else [1, 1, 1],
+                       'lq': [fnum(x) for x in lq.groups()] if lq else [0, 0, 0, 1],
                        'ch': re.findall(r'- \{fileID: (\d+)\}', chs)}
         elif cid == '114':
             g = re.search(r'm_GameObject: \{fileID: (\d+)\}', d)
@@ -128,25 +132,36 @@ def export(key, rel):
     byGo = {t['go']: fid for fid, t in tr.items()}
     roots = [fid for fid, t in tr.items() if t['father'] not in tr]
     world = {}  # fid -> (x, y, sx, sy)
-    def walk(fid, px, py, psx, psy, path, active):
+    rot = key in ROTATE_KEYS
+    def walk(fid, px, py, psx, psy, path, active, pm):
         t = tr[fid]; g = go.get(t['go'], {'name': '?', 'active': True})
         p = (path + '/' if path else '') + g['name']
         lp, ls = t['lp'], t['ls']
         for k, (rp, rs) in RUNTIME_POSE.items():
             if p.endswith(k): lp = [rp[0], rp[1], 0]; ls = [rs[0], rs[1], 1]
-        x = px + lp[0] * psx; y = py + lp[1] * psy
-        sx = psx * ls[0]; sy = psy * ls[1]
+        if rot:  # 회전·뒤집기까지 누적한 2x2 행렬(부모 행렬 × 회전 × 배율)
+            x = px + pm[0] * lp[0] + pm[1] * lp[1]; y = py + pm[2] * lp[0] + pm[3] * lp[1]
+            qx, qy, qz, qw = t['lq']
+            r00, r01, r10, r11 = 1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw), 2 * (qx * qy + qz * qw), 1 - 2 * (qx * qx + qz * qz)
+            a, b, c, d = r00 * ls[0], r01 * ls[1], r10 * ls[0], r11 * ls[1]
+            m = [pm[0] * a + pm[1] * c, pm[0] * b + pm[1] * d, pm[2] * a + pm[3] * c, pm[2] * b + pm[3] * d]
+            sx, sy = (m[0] ** 2 + m[2] ** 2) ** 0.5, (m[1] ** 2 + m[3] ** 2) ** 0.5
+        else:
+            x = px + lp[0] * psx; y = py + lp[1] * psy
+            sx = psx * ls[0]; sy = psy * ls[1]; m = [sx, 0, 0, sy]
         act = active and g['active']
-        world[fid] = {'x': x, 'y': y, 'sx': sx, 'sy': sy, 'path': p, 'active': act, 'name': g['name']}
+        world[fid] = {'x': x, 'y': y, 'sx': sx, 'sy': sy, 'path': p, 'active': act, 'name': g['name'], 'm': m}
         for c in t['ch']:
-            if c in tr: walk(c, x, y, sx, sy, p, act)
-    for r in roots: walk(r, 0, 0, 1, 1, '', True)
+            if c in tr: walk(c, x, y, sx, sy, p, act, m)
+    for r in roots: walk(r, 0, 0, 1, 1, '', True, [1, 0, 0, 1])
     rootT = roots[0]
     widgets = []
     for fid, w in world.items():
         for c in comps.get(tr[fid]['go'], []):
             if c.get('kind') == 'panel': continue
             wd = dict(c, fid=fid, path=w['path'], name=w['name'], active=w['active'], x=w['x'], y=w['y'], sx=w['sx'], sy=w['sy'])
+            mm = w['m']
+            if rot and (abs(mm[1]) > 1e-4 or abs(mm[2]) > 1e-4 or mm[0] < 0 or mm[3] < 0): wd['m'] = mm  # 회전·뒤집힌 위젯
             lk = go.get('_loc', {}).get(tr[fid]['go'])
             if lk and c.get('kind') == 'label':
                 wd['locKey'] = lk
@@ -155,6 +170,12 @@ def export(key, rel):
     # 사각형 계산 (앵커 없음)
     def base_rect(wd):
         pw, ph = PIVOT.get(wd.get('mPivot', 4), (0.5, 0.5))
+        if 'm' in wd:  # 회전 위젯: 자기 좌표 사각형(lrect, 기준점 원점)을 행렬로 옮긴 꼭짓점의 외곽 사각형
+            W0, H0 = wd.get('mWidth', 0), wd.get('mHeight', 0); m = wd['m']
+            wd['lrect'] = [-W0 * pw, -H0 * ph, W0 * (1 - pw), H0 * (1 - ph)]
+            l0, b0, r0, t0 = wd['lrect']
+            pts = [(wd['x'] + m[0] * u + m[1] * v, wd['y'] + m[2] * u + m[3] * v) for u in (l0, r0) for v in (b0, t0)]
+            return [min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts)]
         W = wd.get('mWidth', 0) * wd['sx']; H = wd.get('mHeight', 0) * wd['sy']
         l = wd['x'] - W * pw; b = wd['y'] - H * ph
         return [l, b, l + W, b + H]
@@ -204,6 +225,7 @@ def export(key, rel):
              'pivot': wd.get('mPivot', 4), 'scale': [round(wd['sx'], 4), round(wd['sy'], 4)]}
         for k, nk in [('locKey', 'locKey'), ('sprite', 'sprite'), ('mType', 'type'), ('mFillDirection', 'fillDir'), ('mFillAmount', 'fill'), ('mFlip', 'flip'), ('color', 'color'), ('text', 'text'), ('mFontSize', 'fontSize'), ('mAlignment', 'align'), ('mOverflow', 'overflow'), ('effectColor', 'effectColor'), ('mEffectStyle', 'effect'), ('texture', 'texture'), ('atlas', 'atlas'), ('mWidth', 'w'), ('mHeight', 'h')]:
             if k in wd: o[nk] = wd[k]
+        if 'm' in wd: o['m'] = [round(v, 4) for v in wd['m']]; o['org'] = [round(wd['x'], 1), round(wd['y'], 1)]; o['lrect'] = [round(v, 1) for v in wd['lrect']]
         out.append(o)
     out.sort(key=lambda o: o['depth'])
     return out
@@ -232,7 +254,12 @@ def export_detail_data():
     for r in d.get('Table_Skill', []):
         k = r.get('SkillDescription')
         if r['Key'] not in have and k and k != '0' and tl.get(k): sdesc[r['Key']] = text(k)
-    data = {'loc': {k: LOC[k] for k in CODE_LOC_KEYS if k in LOC}, 'buffGroups': groups, 'mobInfo': mob, 'buffDescFmt': desc, 'skillDesc': sdesc}
+    # 효과 목록 새 방식(UIBattleBuffGroupInfo_NewType): 효과 그룹(Table_BuffEffectGroup)과 효과 → 그룹 대응(BuffEffectGroup 열)
+    egroups = {r['Key']: {'name': text(r.get('Name')), 'icon': r.get('BuffIcon') or '', 'source': r.get('BuffSource') or '', 'type': int(r.get('Type') or 0)}
+               for r in d.get('Table_BuffEffectGroup', [])}
+    egroupOf = {r['Key']: r['BuffEffectGroup'] for r in d.get('Table_BuffEffect', []) if r.get('BuffEffectGroup') not in (None, '', '0')}
+    data = {'loc': {k: LOC[k] for k in CODE_LOC_KEYS if k in LOC}, 'buffGroups': groups, 'mobInfo': mob, 'buffDescFmt': desc, 'skillDesc': sdesc,
+            'effectGroups': egroups, 'effectGroupOf': egroupOf}
     json.dump(data, io.open(os.path.join(OUT, 'detail.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 
 def main():
@@ -260,7 +287,7 @@ def main():
         info = {}
         if os.path.exists(os.path.join(OUT, 'sprites.json')): info = json.load(io.open(os.path.join(OUT, 'sprites.json'), encoding='utf-8'))
         for name in os.listdir(atlas_dir):
-            if not name.endswith('.prefab'): continue
+            if not name.endswith(('.prefab', '.asset')): continue  # 아틀라스는 프리팹 또는 에셋(Common_Atlas.asset)
             s = io.open(os.path.join(atlas_dir, name), encoding='utf-8', errors='replace').read()
             mat = re.search(r'material: \{fileID: \d+, guid: ([0-9a-f]+)', s)
             png = None
