@@ -32,7 +32,7 @@ const TERSER = {
 };
 // 가벼운 난독화: 문자열을 표로 빼고 이름을 16진수로 바꾼다. 흐름 평탄화·죽은 코드는 전투 계산 속도를 떨어뜨려 쓰지 않는다.
 const OBF = {
-  compact: true, simplify: true, renameGlobals: false, identifierNamesGenerator: 'hexadecimal',
+  compact: true, simplify: true, renameGlobals: false, identifierNamesGenerator: 'hexadecimal', seed: 20261027, // 같은 입력이면 같은 결과
   stringArray: true, stringArrayThreshold: 0.6, stringArrayEncoding: ['base64'], stringArrayRotate: true, stringArrayShuffle: true,
   splitStrings: false, controlFlowFlattening: false, deadCodeInjection: false, selfDefending: false, debugProtection: false,
   disableConsoleOutput: false, unicodeEscapeSequence: false, target: 'browser',
@@ -94,7 +94,8 @@ async function main() {
     const squeeze = async (code, label) => {
       const t = await minify(code, TERSER);
       if (t.code == null) throw new Error('terser 실패: ' + label);
-      return Obf.obfuscate(t.code, OBF).getObfuscatedCode();
+      // 인라인 스크립트 안에 "</script" 가 그대로 남으면 페이지 파서가 거기서 스크립트를 끊어 버린다(난독화 결과가 무작위라 가끔 생김)
+      return Obf.obfuscate(t.code, OBF).getObfuscatedCode().replace(/<\/script/gi, '<\\/script');
     };
     for (const rel of scripts) {
       const file = path.join(OUT, rel), code = fs.readFileSync(file, 'utf8');
