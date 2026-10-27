@@ -56,6 +56,8 @@
   function cellPos(team, pos) { const r = Math.floor(pos / 3), c = pos % 3; const X = (team === 1 ? PC_X : MOB_X)[r][c]; const fieldScale = Math.min(1, (W - 100) / 1700, (H - 420) / 600); const f = 33 / ROW_Z[r] * fieldScale; const centerY = Math.min(H / 2 + 50, H - 315 - 190 * fieldScale); return { x: W / 2 + X * SX * f, y: centerY - ROW_Y[r] * SY * f, f, r, c }; }
   const unitPos = (u) => cellPos(u.team === 1 ? 1 : 0, u.gridPos);
   const unitBox = (u) => { const p = unitPos(u); const h = UNIT_H * p.f, w = 120 * p.f; return { x: p.x - w / 2, y: p.y - h, w, h, p }; };
+  // 대상 선택 표식(빨간·초록 회전 삼각형)의 중심. 승인 버튼도 이 점에 맞춘다.
+  const markCenter = (u) => { const bx = unitBox(u); return { x: bx.p.x, y: bx.y + bx.h * 0.55 }; };
 
   // ---------------------------------------------------------------- 캔버스
   SCENE.setWidth = function (w) { C.setup.autoResolution = !w; if (w) C.setup.aspect = w; SCENE.fit(); };
@@ -335,7 +337,8 @@
       // 화면 좌표는 아래가 양수이므로 원본의 세로 위치와 회전 부호를 뒤집는다.
       const pieces = [[32.4, -13.3, 0], [-3.4, 41.5, 120], [-32.6, -16.2, 240]];
       const scale = 0.85 * p.f * (isSel ? 1.06 : 1);
-      ctx.save(); ctx.translate(p.x, bx.y + bx.h * 0.55); ctx.scale(scale, scale);
+      const mc = markCenter(u);
+      ctx.save(); ctx.translate(mc.x, mc.y); ctx.scale(scale, scale);
       ctx.rotate(-SCENE.t * 0.6);
       for (const [x, y, angle] of pieces) {
         ctx.save(); ctx.translate(x, -y); ctx.rotate(-angle * Math.PI / 180);
@@ -505,17 +508,13 @@
     ov['play_btn_Eye guidance/play_btn_Eye guidance'] = { active: canPlay, alpha: 0.6 + 0.3 * Math.sin(now / 250) };
     ov['play_btn_Eye guidance/play_btn_Eye guidance/play_btn_Eye guidance2'] = { active: canPlay, alpha: 0.35 + 0.25 * Math.sin(now / 250) };
     const who = m ? m.unit : u || (S.lastAction && S.lastAction.actor);
-    // 승인 버튼 (UI_ATK_Confirm): 찍은 대상 머리 위(_skillconfirm)
+    // 승인 버튼 (UI_ATK_Confirm): 버튼 중심을 대상 선택 표식(회전 삼각형) 중심에, 이동 확정은 목적지 칸에 맞춘다
     if (m && m.sel && (!m.needPlay || moveConfirm)) {
       const t = m.sel.targetAid ? C.byAid(m.sel.targetAid) : null;
-      const bx = t ? unitBox(t) : unitBox(m.unit);
-      const destination = moveConfirm ? cellPos(m.unit.team, m.sel.targetGridPos) : null;
-      const headX = destination ? destination.x : bx.x + bx.w / 2, headY = destination ? destination.y : bx.y + 10;
-      const root = UI.find('battle', 'Panel_StageBattle/UI_ATK_Confirm');
-      const button = moveConfirm && UI.find('battle', 'UI_ATK_Confirm/UI_ATK_Confirm_BTN_BG');
-      const rx = button ? (button.rect[0] + button.rect[2]) / 2 : root ? root.rect[0] : 344;
-      const ry = button ? (button.rect[1] + button.rect[3]) / 2 : root ? root.rect[1] : 33;
-      ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: true, move: [headX - W / 2 - rx + (moveConfirm ? 0 : 60), (H / 2 - headY) - ry - (moveConfirm ? 0 : 40)] };
+      const center = moveConfirm ? cellPos(m.unit.team, m.sel.targetGridPos) : markCenter(t || m.unit);
+      const button = UI.find('battle', 'UI_ATK_Confirm/UI_ATK_Confirm_BTN_BG');
+      const rx = button ? (button.rect[0] + button.rect[2]) / 2 : 344, ry = button ? (button.rect[1] + button.rect[3]) / 2 : 33;
+      ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: true, move: [center.x - W / 2 - rx, (H / 2 - center.y) - ry] };
       ov['UI_ATK_Confirm/UI_ATK_Confirm_BTN_BG'] = { hit: 'confirm' };
       ov['UI_ATK_Confirm/Confirm_btn_Eye guidance'] = { active: true, alpha: 0.6 + 0.3 * Math.sin(now / 250) };
     } else ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: false };
