@@ -42,7 +42,14 @@
     return true;
   };
   // 효과 목록 보기 방식(원작 옵션, 기본은 일반 방식). 창을 닫았다 열어도 유지한다.
+  //  실험 시스템 '체력 막대 밑 버프 표기2'와 서로 연동: 새 방식 ↔ 실험 켬, 일반 방식 ↔ 실험 끔. 시작할 때는 실험 설정을 따른다.
   try { DETAIL.newType = localStorage.getItem('sandbox.detailBuffNewType') === '1'; } catch (e) { DETAIL.newType = false; }
+  DETAIL.setNewType = function (on) {
+    if (DETAIL.newType !== on) { DETAIL.newType = on; DETAIL.scroll = 0; }
+    try { localStorage.setItem('sandbox.detailBuffNewType', on ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
+    if (C.sysOn('skillIcons') !== on) C.toggleSystem('skillIcons', on);
+  };
+  C.on('systems', () => { if (C.sysOn('skillIcons') !== DETAIL.newType) DETAIL.setNewType(C.sysOn('skillIcons')); });
   DETAIL.close = function () { DETAIL.unit = null; };
 
   // ---------------------------------------------------------------- 값 만들기
@@ -360,8 +367,7 @@
       case 'filter': if (DETAIL.newType) DETAIL.fNew = k.i; else DETAIL.filter = k.i; DETAIL.scroll = 0; break;
       case 'group': if (DETAIL.closed.has(k.name)) DETAIL.closed.delete(k.name); else DETAIL.closed.add(k.name); break;
       case 'change': // OnBtnBuffGroupInfoUIType: 일반 ↔ 새 방식, 설정으로 저장(GameOption.BattleBuffGroupInfoUITypeNormal)
-        DETAIL.newType = !DETAIL.newType; DETAIL.scroll = 0;
-        try { localStorage.setItem('sandbox.detailBuffNewType', DETAIL.newType ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
+        DETAIL.setNewType(!DETAIL.newType); // 실험 '체력 막대 밑 버프 표기2'도 같이 켜고 끈다
         break;
       default: break;
     }

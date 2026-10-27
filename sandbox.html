@@ -170,6 +170,7 @@ td.n, th.n { text-align: right; }
   $('layoutReset').addEventListener('click', () => WM.resetLayout());
   $('layoutScene').addEventListener('click', () => { const w = WM.wins.scene; w.x = 0; w.y = 0; w.w = Math.max(640, $('workspace').clientWidth - 380); w.h = Math.max(360, Math.round(w.w * 9 / 16) + 30); w.scale = 1; WM.apply(w); WM.save(); });
   try { await C.load(); await UI.load(); } catch (e) { console.error(e); setStatus('전투 자료를 불러오지 못했습니다. 다시 실행해 주세요.'); return; }
+  if (window.DETAIL) DETAIL.setNewType(C.sysOn('skillIcons')); // 정보창 효과 목록 방식은 저장된 실험 설정(체력 막대 밑 버프 표기2)을 따른다
   const ws = $('workspace'), WW = ws.clientWidth, WH = ws.clientHeight;
   const sceneW = Math.max(640, WW - 380), sceneH = Math.min(WH - 270, Math.round(sceneW * 9 / 16) + 30);
   // 창들
