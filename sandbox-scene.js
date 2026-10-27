@@ -76,6 +76,7 @@
     cv.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0 || !window.DETAIL || DETAIL.unit) return;
       SCENE.longPressed = false; stopPress(); const p0 = toLocal(ev); SCENE.pressStart = p0;
+      const h0 = hitAt(p0); SCENE.pressUnit = h0 && h0.kind === 'unit' ? h0.data : null; SCENE.pressT0 = performance.now(); // 누르는 동안 로딩 고리(drawPressRing)
       SCENE.pressTimer = setTimeout(() => { SCENE.pressTimer = null; const h = hitAt(p0); if (h && h.kind === 'unit' && DETAIL.open(h.data)) SCENE.longPressed = true; }, DETAIL.LONG_PRESS);
     });
     cv.addEventListener('pointermove', (ev) => { if (SCENE.pressTimer && SCENE.pressStart) { const p = toLocal(ev); if (Math.hypot(p.x - SCENE.pressStart.x, p.y - SCENE.pressStart.y) >= 24) stopPress(); } });
@@ -280,8 +281,20 @@
     drawHud(ctx, now, m, pv, markers);
     drawTopInfo(ctx);
     if (S.result) drawResult(ctx, S.result);
+    drawPressRing(ctx, now);
     if (window.DETAIL && DETAIL.unit) { SCENE.hits = []; DETAIL.draw(ctx, W, H, hit); } // 길게 누르기 상세 정보창(맨 위, 뒤는 누를 수 없음)
     if (SCENE.status && now < SCENE.statusUntil) text(ctx, SCENE.status, 24, H - 24, { size: 22, color: '#ffd86e' });
+  }
+  // 길게 누르기 로딩 연출: 유닛 위를 누르고 있는 동안 누른 자리에 속이 빈 흰 고리가 돌면서 정보창이 뜰 때까지 차오른다
+  function drawPressRing(ctx, now) {
+    if (!SCENE.pressTimer || !SCENE.pressUnit || !SCENE.pressStart || !window.DETAIL || DETAIL.unit) return;
+    const k = Math.max(0, Math.min(1, (now - SCENE.pressT0) / DETAIL.LONG_PRESS)), p = SCENE.pressStart, R = 34;
+    const a0 = -Math.PI / 2 + (now - SCENE.pressT0) / 1000 * Math.PI * 4; // 1초에 두 바퀴 회전
+    ctx.save(); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 9; ctx.stroke(); // 바탕 그림자
+    ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 5; ctx.stroke(); // 흐린 고리
+    ctx.beginPath(); ctx.arc(p.x, p.y, R, a0, a0 + Math.PI * 2 * Math.max(0.08, k)); ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.stroke(); // 차오르는 고리
+    ctx.restore();
   }
   function drawIdle(ctx) {
     text(ctx, '배치 창에서 아군·적을 정하고 행동 개시(또는 오른쪽 창의 전투 시작)를 누르세요', W / 2, H / 2, { size: 30, align: 'center', color: '#dfe7f0' });

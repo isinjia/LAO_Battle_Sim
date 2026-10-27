@@ -36,11 +36,14 @@
     UI._layoutKey = cacheKey; return UI._battleLayout;
   };
   UI.find = (key, suffix) => UI.layout(key).find((o) => o.path.endsWith(suffix)) || null;
+  // BattleAtlas_add 는 NGUI "Unlit/Transparent Additive"(Blend SrcAlpha One) 재질: 빛처럼 더해 그린다(어두운 색은 거의 안 보임)
+  const ADDITIVE_ATLAS = new Set(['6cc41b1687d41d0489d2dc7a5ab5590b']);
   // 9분할/채움 스프라이트
   function drawSprite(ctx, o, x, y, w, h, color, alpha, fill, flip) {
     const name = o.sprite; const src = color ? tinted(name, color) : sprite(name); if (!src) return;
     const info = SPR()[String(name).replace(/ /g, '_')], b = info ? info.b : [0, 0, 0, 0];
     ctx.save(); ctx.globalAlpha = alpha;
+    if (ADDITIVE_ATLAS.has(o.atlas)) ctx.globalCompositeOperation = 'lighter';
     if (flip === 1 || flip === 3) { ctx.translate(x + w, 0); ctx.scale(-1, 1); x = 0; }
     if (flip === 2 || flip === 3) { ctx.translate(0, y + h); ctx.scale(1, -1); y = 0; }
     if (fill !== undefined && fill < 1) { // 채움(가로) — 슬라이더 전경도 같은 방식
