@@ -58,9 +58,16 @@
   }
   // NGUI 색 코드([RRGGBB], [-]) 가 섞인 글자
   function drawLabel(ctx, o, x, y, w, h, text, color, alpha, scale) {
-    const size = Math.max(6, Math.round((o.fontSize || 20) * scale));
+    let size = Math.max(6, Math.round((o.fontSize || 20) * scale));
     ctx.save(); ctx.globalAlpha = alpha;
-    ctx.font = `700 ${size}px "Noto Sans KR", "Malgun Gothic", sans-serif`; ctx.textBaseline = 'middle';
+    const font = (s) => `700 ${s}px "Noto Sans KR", "Malgun Gothic", sans-serif`;
+    ctx.font = font(size); ctx.textBaseline = 'middle';
+    // NGUI Overflow.ShrinkContent(0): 상자에 들어가지 않으면 글자 크기를 줄인다
+    if (!o.overflow && w > 0) {
+      const plain = String(text).split('\n').map((l) => l.replace(/\[(?:[0-9a-fA-F]{6}|-)\]/g, ''));
+      const k = Math.min(1, w / Math.max(1, ...plain.map((l) => ctx.measureText(l).width)), h > 0 && plain.length > 1 ? h / (size * 1.15 * plain.length) : 1);
+      if (k < 1) { size = Math.max(6, Math.floor(size * k)); ctx.font = font(size); }
+    }
     const piv = o.pivot === undefined ? 4 : o.pivot; const px = [0, 0.5, 1, 0, 0.5, 1, 0, 0.5, 1][piv], py = [1, 1, 1, 0.5, 0.5, 0.5, 0, 0, 0][piv];
     let align = o.align || 0; if (align === 0) align = px === 0 ? 1 : px === 1 ? 3 : 2;
     const lines = String(text).split('\n');

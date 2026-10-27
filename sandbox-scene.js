@@ -348,23 +348,31 @@
     // 후보·선택 표시 (UI_Battle_main_Field_cursor_r / selectIcon)
     const isCand = !dead && m && !m.sel && m.mode === 'skill' && m.cands && m.cands.kind === 'unit' && m.cands.units.includes(u);
     const isSel = !dead && m && m.sel && m.sel.targetAid === u.aid;
+    // UI_Cha_select_icon_Enemy 프리팹: 회전하지 않는 역삼각형(조각 3개 + 외곽선) + 가운데 TARGET 글자 + 아래 커서(0.5초 위아래 왕복).
+    //  나타날 때 TweenScale 0 → 1 (0.5초). 화면 좌표는 아래가 양수이므로 원본의 세로 위치와 회전 부호를 뒤집는다.
     if (isCand || isSel) {
-      const g = u.team === 1 ? 'g' : 'r'; const im = sprite('UI_Battle_Main_Field_Frame_selectIcon_' + g), ol = sprite('UI_Battle_Main_Field_Frame_selectIcon_outline_' + g);
-      // 원본 프리팹의 조각 위치와 회전을 한 그룹으로 유지한다.
-      // 화면 좌표는 아래가 양수이므로 원본의 세로 위치와 회전 부호를 뒤집는다.
+      const now = performance.now(); if (u._markT0 == null) u._markT0 = now;
+      const g = u.team === 1 ? 'g' : 'r';
+      const im = sprite('UI_Battle_Main_Field_Frame_selectIcon_' + g), ol = sprite('UI_Battle_Main_Field_Frame_selectIcon_outline_' + g);
+      const tx = sprite('UI_Battle_Main_Field_Frame_select_onlyText_' + (g === 'r' ? 'R' : 'g')), cur = sprite('UI_Battle_main_Field_cursor_' + g);
       const pieces = [[32.4, -13.3, 0], [-3.4, 41.5, 120], [-32.6, -16.2, 240]];
-      const scale = 0.85 * p.f * (isSel ? 1.06 : 1);
+      const grow = Math.min(1, (now - u._markT0) / 500);
+      const scale = 0.85 * p.f * grow;
       const mc = markCenter(u);
       ctx.save(); ctx.translate(mc.x, mc.y); ctx.scale(scale, scale);
-      ctx.rotate(-SCENE.t * 0.6);
+      ctx.save(); ctx.translate(0, -0.2);
       for (const [x, y, angle] of pieces) {
         ctx.save(); ctx.translate(x, -y); ctx.rotate(-angle * Math.PI / 180);
         if (im) ctx.drawImage(im, -36, -58, 72, 116);
-        if (ol) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = isSel ? 0.95 : 0.65; ctx.drawImage(ol, -36, -58, 72, 116); }
+        if (ol) ctx.drawImage(ol, -36, -58, 72, 116);
         ctx.restore();
       }
       ctx.restore();
-    }
+      if (tx) ctx.drawImage(tx, -0.5 - 28, -8.8 - 9, 56, 18);
+      const ph = (now / 500) % 2, by = -20 + 7.9 * (ph < 1 ? ph : 2 - ph); // TweenPosition y -20 ↔ -12.1 왕복
+      if (cur) ctx.drawImage(cur, 0.4 - 11, -by - 13, 22, 26);
+      ctx.restore();
+    } else u._markT0 = null;
     if (false) { // (UICreatureInfo 프리팹으로 대체)
       const w = 190 * 1, x = p.x - w / 2, y = bx.y - 62;
       drawSliced(ctx, 'UI_Battle_Main_Field_Frame_mini', x, y, w, 20, { color: '#9c9c9c' });
