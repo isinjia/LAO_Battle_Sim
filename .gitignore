@@ -1,4 +1,7 @@
 # 생성물·대용량 산출물
+dist/
+node_modules/
+package-lock.json
 .preview/
 .preview.zip
 tools/out/

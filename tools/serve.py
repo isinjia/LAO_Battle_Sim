@@ -1,9 +1,10 @@
 """Local server for the simulator: serves _BattleSim with UTF-8 charsets (sim.html has no <meta charset>,
 because the claude.ai artifact skeleton adds one; a plain http.server would make browsers guess EUC-KR).
-Usage: python tools/serve.py [port]"""
+Usage: python tools/serve.py [port] [folder]   (folder 생략 시 저장소 루트, 배포판 확인은 dist)"""
 import http.server, os, sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+if len(sys.argv) > 2: ROOT = os.path.abspath(sys.argv[2])
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{
@@ -11,6 +12,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         '.js': 'text/javascript; charset=utf-8',
         '.json': 'application/json; charset=utf-8',
         '.css': 'text/css; charset=utf-8',
+        '.pak': 'application/octet-stream',
     })
 
     def __init__(self, *a, **kw):

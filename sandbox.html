@@ -11,6 +11,7 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--f); font-size: 13px; }
 #app { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; }
 .win-title { touch-action: none; }
+canvas, img { -webkit-user-drag: none; user-drag: none; }
 [hidden] { display: none !important; }
 #menubar { height: 32px; background: #1e1e1e; border-bottom: 1px solid #000; display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 13px; }
 #menubar .brand { font-weight: 700; color: #fff; margin-right: 10px; }
@@ -149,7 +150,7 @@ td.n, th.n { text-align: right; }
 <script src="https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js"></script>
 <script>
 // 브라우저가 예전 스크립트를 캐시해 쓰지 않도록 매번 다른 버전 값을 붙여 읽는다(순서 유지)
-(function () { const v = Date.now(); for (const f of ["sandbox-view.js", "engine/enums.js", "engine/core.js", "engine/stats.js", "engine/buffs.js", "engine/combat.js", "engine/ai.js", "engine/battle.js", "sd/sd.js", "sd/chars/index.js", "sd/charmap.js", "sandbox-sd.js", "sandbox-core.js", "sandbox-help.js", "sandbox-wm.js", "sandbox-ui.js", "sandbox-scene.js", "sandbox-panels.js"]) document.write('<script src="' + f + '?v=' + v + '"><\/script>'); })();
+(function () { const v = Date.now(); for (const f of ["sandbox-pack.js", "sandbox-view.js", "engine/enums.js", "engine/core.js", "engine/stats.js", "engine/buffs.js", "engine/combat.js", "engine/ai.js", "engine/battle.js", "sd/sd.js", "sd/chars/index.js", "sd/charmap.js", "sandbox-sd.js", "sandbox-core.js", "sandbox-help.js", "sandbox-wm.js", "sandbox-ui.js", "sandbox-scene.js", "sandbox-panels.js"]) document.write('<script src="' + f + '?v=' + v + '"><\/script>'); })();
 </script>
 <script>
 (async function () {
@@ -159,6 +160,9 @@ td.n, th.n { text-align: right; }
   // 메뉴
   document.querySelectorAll('#menubar .menu > button').forEach((b) => b.addEventListener('click', (ev) => { const m = b.parentElement; const open = m.classList.contains('open'); document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open'); ev.stopPropagation(); }));
   document.addEventListener('click', () => document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')));
+  // 그림 위 오른쪽 클릭 메뉴("이미지 저장")와 끌어 내기 막기
+  document.addEventListener('contextmenu', (ev) => { if (ev.target.closest('canvas, img')) ev.preventDefault(); });
+  document.addEventListener('dragstart', (ev) => { if (ev.target.closest('canvas, img')) ev.preventDefault(); });
   WM.init($('workspace'), $('winMenu'));
   $('version').textContent = HELP.VERSION; document.title += ' ' + HELP.VERSION;
   $('btnNotes').addEventListener('click', () => HELP.openNotes());

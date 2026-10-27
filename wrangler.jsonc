@@ -1,7 +1,10 @@
+// Cloudflare Workers 배포 설정. `npx wrangler deploy` 가 먼저 build.command 로 dist/ 를 만들고(코드 압축·난독화, 이미지 마스킹),
+// worker.js 가 dist/ 의 정적 자산을 내보내며 이미지·자료 파일의 직접 접근을 막는다. 저장소에는 읽을 수 있는 원본이 남는다.
 {
-  // Cloudflare Workers 정적 배포 설정. 저장소 루트를 그대로 올리되 .assetsignore 에 적힌 폴더는 제외한다.
   "name": "lao-battle-sim",
+  "main": "worker.js",
   "compatibility_date": "2026-10-23",
   "observability": { "enabled": true },
-  "assets": { "directory": "." }
+  "build": { "command": "node tools/build_dist.mjs" },
+  "assets": { "directory": "./dist", "binding": "ASSETS" }
 }

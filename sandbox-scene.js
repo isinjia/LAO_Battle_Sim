@@ -10,7 +10,7 @@
   const SCENE = { canvas: null, ctx: null, zoom: 1, host: null, mouse: { x: -1, y: -1 }, hits: [], pops: [], last: 0, t: 0, status: '', statusUntil: 0, imgs: {}, tints: {}, running: false, hoverUnit: null };
 
   // ---------------------------------------------------------------- 그림 자료
-  function img(path) { let im = SCENE.imgs[path]; if (!im) { im = new Image(); im.src = path; im._ok = false; im.onload = () => { im._ok = true; }; SCENE.imgs[path] = im; } return im._ok ? im : null; }
+  function img(path) { let im = SCENE.imgs[path]; if (!im) { im = new Image(); im._ok = false; im.onload = () => { im._ok = true; }; if (window.PACKED) PACKED.setSrc(im, path); else im.src = path; SCENE.imgs[path] = im; } return im._ok ? im : null; }
   const sprite = (name) => img('ui/sprites/' + name + '.png');
   const skillImg = (icon) => img('ui/skill/' + icon + '.png');
   const faceImg = (u) => { const n = C.tbarIcon(u); return n ? img('ui/tbar/' + n + '.png') : null; };

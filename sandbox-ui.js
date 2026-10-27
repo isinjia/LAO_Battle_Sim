@@ -6,7 +6,7 @@
 (function () {
   const UI = { layouts: {}, width: 1920, height: 1080, imgs: {}, tints: {} };
   const SPR = () => (window.CORE && CORE.SPRITES) || {};
-  function img(path) { let im = UI.imgs[path]; if (!im) { im = new Image(); im.src = path; im._ok = false; im.onload = () => { im._ok = true; }; UI.imgs[path] = im; } return im._ok ? im : null; }
+  function img(path) { let im = UI.imgs[path]; if (!im) { im = new Image(); im._ok = false; im.onload = () => { im._ok = true; }; if (window.PACKED) PACKED.setSrc(im, path); else im.src = path; UI.imgs[path] = im; } return im._ok ? im : null; }
   const sprite = (name) => img('ui/sprites/' + String(name).replace(/ /g, '_') + '.png');
   function tinted(name, color) {
     const key = name + '|' + color; let cv = UI.tints[key]; if (cv !== undefined) return cv;
