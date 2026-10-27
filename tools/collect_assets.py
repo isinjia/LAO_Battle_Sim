@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""시뮬레이터가 실제로 읽는 이미지 자료만 골라 저장소 안 폴더(sd/chars, sd/mobs, ui/skill, ui/tbar, ui/bg)에 복사한다.
+"""시뮬레이터가 실제로 읽는 이미지 자료만 골라 저장소 안 폴더(sd/chars, sd/mobs, ui/skill, ui/tbar, ui/inven, ui/bg)에 복사한다.
 
 예전에는 이 폴더들을 다른 프로젝트 폴더로 연결(junction)해 썼는데, 그러면 저장소와 배포본에 이미지가 빠진다.
 이 스크립트는 연결 대상 폴더에서 필요한 파일만 복사해 실제 폴더로 만든다. 자료가 바뀌면 다시 실행하면 된다.
@@ -30,6 +30,7 @@ SOURCES = {
     'ui/bg': Path(r'E:\LAO_MINI_GAME\6_LAO_Laket_Monster\assets\bg'),
     'ui/skill': TEX / 'SkillTexture',
     'ui/tbar': TEX / 'TbarIcon',
+    'ui/inven': TEX / 'PCInvenIcon',  # 길게 누르기 정보창의 아군 초상(PCInvenIconID)
 }
 
 def js_list(path, var):
@@ -48,6 +49,8 @@ def needed():
     want['ui/skill'] = sorted(n + '.png' for n in skill if n)
     tbar = set(icons['pcTbar'].values()) | set(icons['mobTbar'].values())
     want['ui/tbar'] = sorted(n + '.png' for n in tbar if n)
+    # 기본 스킨의 인벤 초상: 턴 바 얼굴과 같은 이름 규칙(TbarIcon_X → InvenIcon_X)
+    want['ui/inven'] = sorted(re.sub(r'^TbarIcon_', 'InvenIcon_', n) + '.png' for n in set(icons['pcTbar'].values()) if n)
     want['ui/bg'] = sorted(p.name for p in SOURCES['ui/bg'].glob('*.jpg')) if SOURCES['ui/bg'].exists() else []
     return want
 

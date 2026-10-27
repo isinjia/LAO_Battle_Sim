@@ -219,21 +219,29 @@
       }
       s0 = atlasTag() === 'a35' ? 0.35 : s0;
     }
-    const im = new Image();
-    const loaded = new Promise((r) => { im.onload = im.onerror = r; });
-    if (window.PACKED) PACKED.setSrc(im, a.u); else im.src = a.u; // 배포판: 마스킹한 .pak 을 되돌려 그린다
-    // decode() decodes off the main thread, but may wait indefinitely in a hidden tab: whichever settles first
-    await Promise.race([im.decode().catch(() => loaded), loaded.then(() => new Promise((r) => setTimeout(r, 250)))]);
-    if (!im.naturalWidth) { if (a.v) a.u = undefined; return null; } // undecodable: refetch on retry
+    let im;
+    const bitmap = !!(window.PACKED && PACKED.on);
+    if (bitmap) { // 배포판: 마스킹한 .pak 을 되돌려 ImageBitmap 으로만 디코드(개발자 도구에 그림이 남지 않음)
+      im = await PACKED.load(a.u).catch(() => null);
+      if (!im) { if (a.v) a.u = undefined; return null; }
+    } else {
+      im = new Image();
+      const loaded = new Promise((r) => { im.onload = im.onerror = r; });
+      im.src = a.u;
+      // decode() decodes off the main thread, but may wait indefinitely in a hidden tab: whichever settles first
+      await Promise.race([im.decode().catch(() => loaded), loaded.then(() => new Promise((r) => setTimeout(r, 250)))]);
+      if (!im.naturalWidth) { if (a.v) a.u = undefined; return null; } // undecodable: refetch on retry
+    }
     let src = im;
     const k = SD.texScale / s0;
-    if (k < 0.98) {
+    if (k < 0.98 || bitmap) { // ImageBitmap 은 three 의 위아래 뒤집기가 먹지 않아 캔버스로 옮긴다
       await idle();
       src = document.createElement('canvas');
       src.width = Math.max(4, Math.round(im.width * k)); src.height = Math.max(4, Math.round(im.height * k));
       const g = src.getContext('2d');
       g.imageSmoothingQuality = 'high';
       g.drawImage(im, 0, 0, src.width, src.height);
+      if (bitmap) im.close();
     }
     const tex = new THREE.Texture(src);
     tex.needsUpdate = true;

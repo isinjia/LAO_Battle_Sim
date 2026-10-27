@@ -8,5 +8,7 @@ tools/out/
 tools/node_modules/
 # 부대 편성 아이콘은 쓰지 않아 저장소에 넣지 않는다. SD 리그·스킬·턴바 아이콘·배경은 tools/collect_assets.py 로 모아 저장소에 포함한다
 ui/face/
+# 파이썬 캐시
+__pycache__/
 # 배포 도구 작업 폴더
 .wrangler/

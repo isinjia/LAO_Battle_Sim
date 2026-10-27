@@ -30,5 +30,20 @@
       img.src = b;
     }).catch(() => { img.dispatchEvent(new Event('error')); });
   }
-  window.PACKED = { on, src, setSrc, unmask, pakUrl };
+  // 그릴 이미지를 준비한다. 배포판은 .pak 을 되돌린 바이트를 blob: 주소나 <img> 없이 ImageBitmap 으로만 디코드한다.
+  //  개발자 도구 네트워크 탭에는 마스킹된 .pak 데이터만 남고, 눌러 봐도 그림이 보이지 않는다. 로컬 개발은 평범한 Image.
+  function load(u) {
+    if (on && packedPath(u) && typeof createImageBitmap === 'function') {
+      return fetch(pakUrl(u)).then((r) => { if (!r.ok) throw new Error('pack ' + r.status + ' ' + u); return r.arrayBuffer(); })
+        .then((b) => createImageBitmap(new Blob([unmask(new Uint8Array(b))], { type: mimeOf(u) })));
+    }
+    return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; setSrc(im, u); });
+  }
+  // 화면 코드의 img(): 경로마다 한 번만 불러 두고, 준비됐으면 그릴 것을, 아직이면 null
+  function cached(map, u) {
+    let e = map[u];
+    if (!e) { e = map[u] = { im: null }; load(u).then((im) => { e.im = im; }, () => {}); }
+    return e.im;
+  }
+  window.PACKED = { on, src, setSrc, load, cached, unmask, pakUrl };
 })();

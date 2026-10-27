@@ -1,4 +1,5 @@
-"""NGUI 프리팹(Panel_StageBattle, UIBattleCreature, UICreatureInfo)을 위젯 목록 JSON으로 내보낸다.
+"""NGUI 프리팹(Panel_StageBattle, UIBattleCreature, UICreatureInfo, 길게 누르기 정보창과 효과 목록 줄)을 위젯 목록 JSON으로 내보낸다.
+라벨의 UILocalize 키는 LocalizationPatch.xlsx 의 한국어로 바꿔 넣고, 정보창이 쓰는 표 자료는 ui/detail.json 으로 따로 낸다.
 각 위젯: 이름 경로, 설계 해상도(1920x1080, 원점 중앙, y 위) 기준 사각형 [l,b,r,t], 깊이, 종류(sprite/label/texture),
 스프라이트 이름·분할 종류·색·채움, 글자·크기·정렬, 활성 여부. 앵커는 NGUI 규칙대로 풀어서 사각형에 반영한다.
 필요한 스프라이트 중 ui/sprites 에 없는 것은 아틀라스에서 잘라 넣는다.
@@ -14,7 +15,39 @@ PREFABS = {
     'battle': 'UI/Panel_StageBattle.prefab',
     'tbar': 'UI/UIBattleCreature.prefab',
     'cinfo': 'UI/object/UICreatureInfo.prefab',
+    'detail': 'UI/Panel_BattleCharacterDetail.prefab',  # 캐릭터 길게 누르기 상세 정보창
+    'buffgroup': 'UI/object/UIBattleBuffGroupInfo.prefab',  # 정보창 효과 목록(일반 방식)의 묶음 머리
+    'buffgroup2': 'UI/object/UIBattleBuffGroupInfo_NewType.prefab',  # 정보창 효과 목록(새 방식)의 묶음
+    'buffdesc': 'UI/object/UIBattleApplyBuffDesc.prefab',  # 정보창 효과 목록의 한 줄
 }
+# UILocalize 키 → 한국어 문구 (NGUI 화면 문구: LocalizationPatch.xlsx 의 ko 열)
+LOC_XLSX = os.path.join(ASSETS, 'Localization', 'LocalizationPatch.xlsx')
+# 코드에서 Localization.Get/Format 으로 쓰는 화면 문구(정보창)
+CODE_LOC_KEYS = ['414', '1164', '421', '674', '1174', '201', '202', '203', '204', '205', '206', '2000244', '2000245', '2000490', '2000491', '2000492', '2000493', '1445', '1446', '1447', '1448', '2000487', '2000488', '2000489', '1442', '1443', '1444']
+LOC = {}
+
+def load_loc():
+    import zipfile, xml.etree.ElementTree as ET
+    if not os.path.exists(LOC_XLSX): return {}
+    ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+    z = zipfile.ZipFile(LOC_XLSX)
+    ss = []
+    if 'xl/sharedStrings.xml' in z.namelist():
+        for si in ET.fromstring(z.read('xl/sharedStrings.xml')).iter(ns + 'si'): ss.append(''.join(t.text or '' for t in si.iter(ns + 't')))
+    out = {}
+    for name in sorted(n for n in z.namelist() if n.startswith('xl/worksheets/sheet')):
+        head = None
+        for row in ET.fromstring(z.read(name)).iter(ns + 'row'):
+            vals = {}
+            for c in row.findall(ns + 'c'):
+                col = re.match(r'[A-Z]+', c.get('r')).group(); v = c.find(ns + 'v')
+                if v is not None: vals[col] = ss[int(v.text)] if c.get('t') == 's' else v.text
+                else:
+                    t = c.find(ns + 'is'); vals[col] = ''.join(x.text or '' for x in t.iter(ns + 't')) if t is not None else ''
+            if head is None: head = {v: k for k, v in vals.items()}; continue
+            k, ko = vals.get('A'), vals.get(head.get('ko', 'B'))
+            if k and ko: out[str(k).strip()] = ko.replace('\\n', '\n')
+    return out
 SCREEN = [-960.0, -540.0, 960.0, 540.0]  # l, b, r, t (UIRoot 1920x1080)
 # 실행 중 트윈으로 옮겨지는 노드의 표시 상태(프리팹은 숨김 상태로 저장됨): 경로 끝 이름 -> (위치, 배율)
 RUNTIME_POSE = {'UI_penel_bottom/wrapper': ([-152.0, 60.0], [1.0, 1.0])}
@@ -46,6 +79,10 @@ def parse(path):
         elif cid == '114':
             g = re.search(r'm_GameObject: \{fileID: (\d+)\}', d)
             if not g: continue
+            lk = re.search(r'\n  key: (.+)', d)
+            if lk and 'mWidth' not in d:  # UILocalize: 같은 게임오브젝트 라벨의 문구 키
+                go.setdefault('_loc', {})[g.group(1)] = lk.group(1).strip().strip('"\'')
+                continue
             c = {}
             for k in ['mWidth', 'mHeight', 'mDepth', 'mPivot', 'mType', 'mFillDirection', 'mFontSize', 'mAlignment', 'mOverflow', 'mFlip', 'keepAspectRatio', 'mClipping', 'maxLineCount', 'mEffectStyle']:
                 mm = re.search(r'\b' + k + r': (-?\d+)', d)
@@ -109,7 +146,12 @@ def export(key, rel):
     for fid, w in world.items():
         for c in comps.get(tr[fid]['go'], []):
             if c.get('kind') == 'panel': continue
-            widgets.append(dict(c, fid=fid, path=w['path'], name=w['name'], active=w['active'], x=w['x'], y=w['y'], sx=w['sx'], sy=w['sy']))
+            wd = dict(c, fid=fid, path=w['path'], name=w['name'], active=w['active'], x=w['x'], y=w['y'], sx=w['sx'], sy=w['sy'])
+            lk = go.get('_loc', {}).get(tr[fid]['go'])
+            if lk and c.get('kind') == 'label':
+                wd['locKey'] = lk
+                if lk in LOC: wd['text'] = LOC[lk]
+            widgets.append(wd)
     # 사각형 계산 (앵커 없음)
     def base_rect(wd):
         pw, ph = PIVOT.get(wd.get('mPivot', 4), (0.5, 0.5))
@@ -160,14 +202,43 @@ def export(key, rel):
         r = rect[wd['fid']]
         o = {'path': wd['path'], 'name': wd['name'], 'kind': wd['kind'], 'active': wd['active'], 'rect': [round(v, 1) for v in r], 'depth': wd.get('mDepth', 0),
              'pivot': wd.get('mPivot', 4), 'scale': [round(wd['sx'], 4), round(wd['sy'], 4)]}
-        for k, nk in [('sprite', 'sprite'), ('mType', 'type'), ('mFillDirection', 'fillDir'), ('mFillAmount', 'fill'), ('mFlip', 'flip'), ('color', 'color'), ('text', 'text'), ('mFontSize', 'fontSize'), ('mAlignment', 'align'), ('mOverflow', 'overflow'), ('effectColor', 'effectColor'), ('mEffectStyle', 'effect'), ('texture', 'texture'), ('atlas', 'atlas'), ('mWidth', 'w'), ('mHeight', 'h')]:
+        for k, nk in [('locKey', 'locKey'), ('sprite', 'sprite'), ('mType', 'type'), ('mFillDirection', 'fillDir'), ('mFillAmount', 'fill'), ('mFlip', 'flip'), ('color', 'color'), ('text', 'text'), ('mFontSize', 'fontSize'), ('mAlignment', 'align'), ('mOverflow', 'overflow'), ('effectColor', 'effectColor'), ('mEffectStyle', 'effect'), ('texture', 'texture'), ('atlas', 'atlas'), ('mWidth', 'w'), ('mHeight', 'h')]:
             if k in wd: o[nk] = wd[k]
         out.append(o)
     out.sort(key=lambda o: o['depth'])
     return out
 
+def export_detail_data():
+    """길게 누르기 정보창이 쓰는 자료: 코드 화면 문구, 효과 분류(Table_Buff_Group_Category), 몬스터 설명(Mob_Info)."""
+    d = json.load(io.open(os.path.join(PROJ, 'Assets', 'LastOneTable', 'LoJson.js.bytes'), encoding='utf-8-sig'))
+    tl = {r['Key']: r.get('Korea') for r in d.get('Table_Localization', [])}
+    text = lambda k: (tl.get(k) or k or '').replace('&n', '\n')
+    groups = [{'types': r.get('BUFFEFFECT_TYPE') or [], 'name': text(r.get('Buff_Group_Name')), 'order': r.get('Buff_Group_View_Number', 0), 'view': r.get('Value_View', 0)}
+              for r in d.get('Table_Buff_Group_Category', [])]
+    mob = {}
+    for t in ('Table_Monster', 'Table_MonsterIW'):
+        for r in d.get(t, []):
+            if r.get('Mob_Info'): mob[r['Key']] = text(r['Mob_Info'])
+    # 효과 설명의 숫자 서식(BuffEffectTypeN_DescOutput: 0 정수 / 1 백분율 / 2 없음)과 곱할 능력치(DescOption). 전투 자료(buffs.json)에서는 빠지는 열이다.
+    desc = {}
+    for r in d.get('Table_BuffEffect', []):
+        v = [[int(r.get('BuffEffectType%d_DescOutput' % i) or 0), int(r.get('BuffEffectType%d_DescOption' % i) or 0)] for i in range(1, 6)]
+        if any(a or b for a, b in v): desc[r['Key']] = ''.join('%d%d' % (a, b) for a, b in v)  # 칸마다 두 자리: 서식, 곱할 능력치
+    # 스킬 설명: data/skilldesc.json 에 없는 스킬(몬스터 스킬 등)만 SkillDescription 을 한국어로
+    have = set()
+    try: have = set(json.load(io.open(os.path.join(OUT, '..', 'data', 'skilldesc.json'), encoding='utf-8')).get('skills', {}))
+    except Exception: pass
+    sdesc = {}
+    for r in d.get('Table_Skill', []):
+        k = r.get('SkillDescription')
+        if r['Key'] not in have and k and k != '0' and tl.get(k): sdesc[r['Key']] = text(k)
+    data = {'loc': {k: LOC[k] for k in CODE_LOC_KEYS if k in LOC}, 'buffGroups': groups, 'mobInfo': mob, 'buffDescFmt': desc, 'skillDesc': sdesc}
+    json.dump(data, io.open(os.path.join(OUT, 'detail.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+
 def main():
-    global SCREEN
+    global SCREEN, LOC
+    LOC = load_loc()
+    export_detail_data()
     for width in [1920, 2340, 2400]:
         SCREEN = [-width / 2.0, -540.0, width / 2.0, 540.0]
         data = {}

@@ -6,7 +6,7 @@
 (function () {
   const UI = { layouts: {}, width: 1920, height: 1080, imgs: {}, tints: {} };
   const SPR = () => (window.CORE && CORE.SPRITES) || {};
-  function img(path) { let im = UI.imgs[path]; if (!im) { im = new Image(); im._ok = false; im.onload = () => { im._ok = true; }; if (window.PACKED) PACKED.setSrc(im, path); else im.src = path; UI.imgs[path] = im; } return im._ok ? im : null; }
+  const img = (path) => PACKED.cached(UI.imgs, path); // 배포판은 ImageBitmap(개발자 도구에 그림이 남지 않음)
   const sprite = (name) => img('ui/sprites/' + String(name).replace(/ /g, '_') + '.png');
   function tinted(name, color) {
     const key = name + '|' + color; let cv = UI.tints[key]; if (cv !== undefined) return cv;
@@ -111,6 +111,8 @@
       if (self.hit && opts.hit) opts.hit(o, { x, y, w, h }, self.hit);
     }
   };
+  // 라벨 한 줄을 그 라벨의 글꼴·정렬로 그린다(정보창의 여러 줄 설명처럼 줄을 직접 나눠 그릴 때)
+  UI.drawText = (ctx, o, x, y, w, h, text) => { const c = o.color || [1, 1, 1, 1]; drawLabel(ctx, o, x, y, w, h, text, c, c[3], 1); };
   // 설계 좌표(원점 중앙, y 위) -> 캔버스
   UI.toCanvas = (W, H, x, y) => ({ x: W / 2 + x, y: H / 2 - y });
   window.UI = UI;

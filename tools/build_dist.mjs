@@ -21,8 +21,8 @@ async function loadTool(name, version, entry) {
 }
 
 // 담을 파일·폴더
-const FILES = ['index.html', 'sandbox.html', 'sd/sd.js', 'sd/charmap.js', 'ui/sprites.json', 'ui/layout_1920.json', 'ui/layout_2340.json', 'ui/layout_2400.json'];
-const DIRS = ['engine', 'data', 'sd/chars', 'sd/mobs', 'ui/sprites', 'ui/skill', 'ui/tbar', 'ui/bg'];
+const FILES = ['index.html', 'sandbox.html', 'sd/sd.js', 'sd/charmap.js', 'ui/sprites.json', 'ui/layout_1920.json', 'ui/layout_2340.json', 'ui/layout_2400.json', 'ui/detail.json'];
+const DIRS = ['engine', 'data', 'sd/chars', 'sd/mobs', 'ui/sprites', 'ui/skill', 'ui/tbar', 'ui/inven', 'ui/bg'];
 const CODE = (rel) => /^(sandbox-[\w-]+\.js|engine\/[\w-]+\.js|sd\/sd\.js)$/.test(rel); // 압축·난독화 대상
 const TERSER = {
   ecma: 2020,

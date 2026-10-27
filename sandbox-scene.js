@@ -10,7 +10,7 @@
   const SCENE = { canvas: null, ctx: null, zoom: 1, host: null, mouse: { x: -1, y: -1 }, hits: [], pops: [], last: 0, t: 0, status: '', statusUntil: 0, imgs: {}, tints: {}, running: false, hoverUnit: null };
 
   // ---------------------------------------------------------------- 그림 자료
-  function img(path) { let im = SCENE.imgs[path]; if (!im) { im = new Image(); im._ok = false; im.onload = () => { im._ok = true; }; if (window.PACKED) PACKED.setSrc(im, path); else im.src = path; SCENE.imgs[path] = im; } return im._ok ? im : null; }
+  const img = (path) => PACKED.cached(SCENE.imgs, path); // 배포판은 ImageBitmap(개발자 도구에 그림이 남지 않음)
   const sprite = (name) => img('ui/sprites/' + name + '.png');
   const skillImg = (icon) => img('ui/skill/' + icon + '.png');
   const faceImg = (u) => { const n = C.tbarIcon(u); return n ? img('ui/tbar/' + n + '.png') : null; };
@@ -70,7 +70,18 @@
     cv.addEventListener('mousemove', (ev) => { SCENE.mouse = toLocal(ev); const h = hitAt(SCENE.mouse); cv.style.cursor = h ? h.cursor : 'default'; onHover(h); });
     cv.addEventListener('mouseleave', () => { SCENE.mouse = { x: -1, y: -1 }; onHover(null); });
     cv.addEventListener('mousedown', (ev) => { if (ev.button !== 0) return; SCENE.pressAt = toLocal(ev); });
-    cv.addEventListener('mouseup', (ev) => { if (ev.button !== 0) return; const p = toLocal(ev); const d = SCENE.pressAt ? Math.hypot(p.x - SCENE.pressAt.x, p.y - SCENE.pressAt.y) : 0; if (d < 24) onClick(hitAt(p)); });
+    cv.addEventListener('mouseup', (ev) => { if (ev.button !== 0) return; if (SCENE.longPressed) { SCENE.longPressed = false; return; } const p = toLocal(ev); const d = SCENE.pressAt ? Math.hypot(p.x - SCENE.pressAt.x, p.y - SCENE.pressAt.y) : 0; if (d < 24) onClick(hitAt(p)); });
+    // 길게 누르기(ObjectPicker 0.3초, 손가락도 같음): 유닛 위에서 누른 채 움직이지 않으면 상세 정보창(sandbox-detail.js)
+    const stopPress = () => { clearTimeout(SCENE.pressTimer); SCENE.pressTimer = null; };
+    cv.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0 || !window.DETAIL || DETAIL.unit) return;
+      SCENE.longPressed = false; stopPress(); const p0 = toLocal(ev); SCENE.pressStart = p0;
+      SCENE.pressTimer = setTimeout(() => { SCENE.pressTimer = null; const h = hitAt(p0); if (h && h.kind === 'unit' && DETAIL.open(h.data)) SCENE.longPressed = true; }, DETAIL.LONG_PRESS);
+    });
+    cv.addEventListener('pointermove', (ev) => { if (SCENE.pressTimer && SCENE.pressStart) { const p = toLocal(ev); if (Math.hypot(p.x - SCENE.pressStart.x, p.y - SCENE.pressStart.y) >= 24) stopPress(); } });
+    cv.addEventListener('pointerup', stopPress); cv.addEventListener('pointercancel', stopPress);
+    cv.addEventListener('contextmenu', (ev) => { if (SCENE.longPressed || SCENE.pressTimer) ev.preventDefault(); });
+    cv.addEventListener('wheel', (ev) => { if (window.DETAIL && DETAIL.unit && DETAIL.wheel(toLocal(ev), ev.deltaY, W, H)) ev.preventDefault(); }, { passive: false });
     SCENE.fit();
     if (!SCENE.running) { SCENE.running = true; tick(); }
   };
@@ -111,6 +122,7 @@
     try { onClickInner(h); } catch (e) { console.error(e); SCENE.setStatus('선택을 처리하지 못했습니다. 다시 선택해 주세요.'); }
   }
   function onClickInner(h) {
+    if (window.DETAIL && DETAIL.unit) { DETAIL.click(h); return; } // 상세 정보창이 떠 있으면 그 창만 누를 수 있다
     const S = C.S, m = S.manual;
     if (h && h.kind === 'unit') C.inspect({ kind: 'unit', unit: h.data });
     if (h && h.kind === 'skill' && h.data) C.inspect({ kind: 'skill', skill: h.data, unit: m ? m.unit : (S.pending && S.pending.unit) || (S.lastAction && S.lastAction.actor) });
@@ -268,6 +280,7 @@
     drawHud(ctx, now, m, pv, markers);
     drawTopInfo(ctx);
     if (S.result) drawResult(ctx, S.result);
+    if (window.DETAIL && DETAIL.unit) { SCENE.hits = []; DETAIL.draw(ctx, W, H, hit); } // 길게 누르기 상세 정보창(맨 위, 뒤는 누를 수 없음)
     if (SCENE.status && now < SCENE.statusUntil) text(ctx, SCENE.status, 24, H - 24, { size: 22, color: '#ffd86e' });
   }
   function drawIdle(ctx) {
