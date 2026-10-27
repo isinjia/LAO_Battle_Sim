@@ -32,10 +32,10 @@ def build():
     for file in (SRC / 'engine').glob('*.js'):
         copy(file.relative_to(SRC))
     for rig in RIGS:
-        for suffix in ['.js', '.a35.webp', '.a50.webp']:
+        for suffix in ['.js', '.a50.webp']:
             copy('sd/chars/' + rig + suffix)
     for rig in ENEMY_RIGS:
-        for suffix in ['.js', '.a35.webp', '.a50.webp']:
+        for suffix in ['.js', '.a50.webp']:
             copy('sd/mobs/' + rig + suffix)
     write('sd/chars/index.js', 'window.SD_LIST=' + json.dumps(RIGS) + ';')
     write('sd/charmap.js', 'window.SD_CHARMAP=' + json.dumps(dict(zip(PCS, RIGS))) + ';\nwindow.SD_MOBRIGS=' + json.dumps(ENEMY_RIGS) + ';')

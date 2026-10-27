@@ -3,10 +3,5 @@
 .preview.zip
 tools/out/
 tools/node_modules/
-# 다른 프로젝트로 연결된 폴더(junction): sd 리그·아이콘·배경 자료. 아래 "자료 연결" 참고
-sd/chars/
-sd/mobs/
-ui/skill/
-ui/tbar/
+# 부대 편성 아이콘은 쓰지 않아 저장소에 넣지 않는다. SD 리그·스킬·턴바 아이콘·배경은 tools/collect_assets.py 로 모아 저장소에 포함한다
 ui/face/
-ui/bg/
