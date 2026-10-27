@@ -15,7 +15,7 @@
         ${(s.opts || []).length ? `<div class="opts">${s.opts.map((o) => `<label title="${esc(o.desc || '')}"><input type="checkbox" data-opt="${s.id}:${o.id}" ${o.on ? 'checked' : ''} ${s.on ? '' : 'disabled'}> <span>${esc(o.name)}${o.desc ? ` <span class="note">— ${esc(o.desc)}</span>` : ''}</span></label>`).join('')}</div>` : ''}
         <div class="verdict">판정 <select data-verdict="${s.id}">${C.VERDICTS.map((x) => `<option ${v.verdict === x ? 'selected' : ''}>${x}</option>`).join('')}</select><input data-memo="${s.id}" placeholder="메모 (왜 좋은지/나쁜지)" value="${esc(v.memo || '')}"></div>
       </div>`; }).join('')}</div>
-      <div class="row"><button id="verdictCopy">판정·메모 복사</button><span class="note">판정과 메모는 이 브라우저에 저장됩니다.</span></div>`;
+      <div class="row"><button id="verdictCopy" title="모든 기능의 상태·판정·메모를 표 형식으로 클립보드에 복사합니다">판정·메모 복사</button><span class="note">판정과 메모는 이 브라우저에 저장됩니다.</span>${HELP.q('systems', '실험 시스템과 판정 도움말')}</div>`;
     el.querySelectorAll('[data-on]').forEach((x) => x.addEventListener('change', () => { if (x.dataset.on === 'manual') C.setAuto(!x.checked); else C.toggleSystem(x.dataset.on, x.checked); renderSystems(el); }));
     if (!el._sysBound) { el._sysBound = true; C.on('systems', () => renderSystems(el)); }
     el.querySelectorAll('[data-opt]').forEach((x) => x.addEventListener('change', () => { const [a, b] = x.dataset.opt.split(':'); C.toggleOpt(a, b, x.checked); }));
@@ -52,11 +52,11 @@
     const bgNames = ['도로','마을','기지','해변','야영지','절벽','해안','숲','격납고','병원','등대','둥지','밤의 절벽','매점','하늘'];
     const bgs = ['route', 'town', 'base', 'beach', 'camp', 'cliff', 'coast', 'forest', 'hangar', 'hospital', 'lighttower', 'nest', 'nightcliff', 'px', 'sky'];
     el.innerHTML = `
-      <div class="row"><button class="primary" id="btnStart">${S.battle ? '다시 시작' : '전투 시작'}</button><button id="btnStep" ${!S.battle || S.battle.result || S.playing ? 'disabled' : ''}>다음 행동</button><button id="btnPlay" ${!S.battle || S.battle.result ? 'disabled' : ''}>${S.playing ? '일시 정지' : '자동 진행'}</button><button id="btnReset" ${S.battle ? '' : 'disabled'}>초기화</button></div>
-      <div class="row"><input type="hidden" id="seed" value="${st.seed}"><input type="hidden" id="maxActions" value="${st.maxActions}"><label>연출 속도<select id="speed">${[['1', '실시간(인게임과 같음)'], ['2', '2배속'], ['3', '5배속'], ['4', '최대(연출 없음)']].map(([v, n]) => `<option value="${v}" ${+st.speed === +v ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label>배경<select id="bg">${bgs.map((b,i) => `<option value="${b}" ${st.bg === b ? 'selected' : ''}>${bgNames[i]}</option>`).join('')}</select></label><label>화면 해상도<select id="aspect"><option value="auto" ${st.autoResolution !== false ? 'selected' : ''}>창 크기에 맞춤</option>${[['1920', '16:9 (1920×1080)'], ['2340', '19.5:9 (2340×1080)'], ['2400', '20:9 (2400×1080)']].map(([v, n]) => `<option value="${v}" ${st.autoResolution === false && +st.aspect === +v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
-      <h3>아군 배치 <span class="note">최대 5명</span></h3>${grid(true)}${editor(true)}
+      <div class="row"><button class="primary" id="btnStart" title="현재 편성으로 새 전투를 시작합니다">${S.battle ? '다시 시작' : '전투 시작'}</button><button id="btnStep" title="유닛 한 명의 행동을 한 번 실행합니다 (아군 입력 대기 중이면 자동 전투가 대신 고름)" ${!S.battle || S.battle.result || S.playing ? 'disabled' : ''}>다음 행동</button><button id="btnPlay" title="연출 시간에 맞춰 행동을 이어서 실행합니다 (아군 수동 조작이 꺼짐)" ${!S.battle || S.battle.result ? 'disabled' : ''}>${S.playing ? '일시 정지' : '자동 진행'}</button><button id="btnReset" title="전투를 버리고 편성 화면으로 돌아갑니다" ${S.battle ? '' : 'disabled'}>초기화</button>${HELP.q('setup#battle', '전투 진행 버튼 도움말')}</div>
+      <div class="row"><input type="hidden" id="seed" value="${st.seed}"><input type="hidden" id="maxActions" value="${st.maxActions}"><label>연출 속도<select id="speed">${[['1', '실시간(인게임과 같음)'], ['2', '2배속'], ['3', '5배속'], ['4', '최대(연출 없음)']].map(([v, n]) => `<option value="${v}" ${+st.speed === +v ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label>배경<select id="bg">${bgs.map((b,i) => `<option value="${b}" ${st.bg === b ? 'selected' : ''}>${bgNames[i]}</option>`).join('')}</select></label><label>화면 해상도<select id="aspect"><option value="auto" ${st.autoResolution !== false ? 'selected' : ''}>창 크기에 맞춤</option>${[['1920', '16:9 (1920×1080)'], ['2340', '19.5:9 (2340×1080)'], ['2400', '20:9 (2400×1080)']].map(([v, n]) => `<option value="${v}" ${st.autoResolution === false && +st.aspect === +v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>${HELP.q('setup#options', '연출 옵션 도움말')}</div>
+      <h3>아군 배치 <span class="note">최대 5명</span> ${HELP.q('setup#ally', '아군 배치 도움말')}</h3>${grid(true)}${editor(true)}
       <div class="row"><label>일괄 레벨<input type="number" id="allyLv" min="1" max="120" value="50"></label><label>일괄 스킬 레벨<input type="number" id="allySk" min="1" max="10" value="5"></label><button id="allyBulk">적용</button></div>
-      <h3>적 배치</h3>${grid(false)}${editor(false)}
+      <h3>적 배치 ${HELP.q('setup#enemy', '적 배치 도움말')}</h3>${grid(false)}${editor(false)}
       <div class="row"><label>일괄 레벨<input type="number" id="enemyLv" min="1" max="200" value="70"></label><button id="enemyBulk">적용</button><button id="resetDefault">기본 배치로</button></div>
       <div class="note">실험 항목을 켜고 끄며 전투의 차이를 비교해 보세요.</div>`;
     $('btnStart').addEventListener('click', () => C.startBattle());
@@ -85,7 +85,7 @@
 
   // ---------------------------------------------------------------- 기록 창
   function renderLog(el) {
-    el.innerHTML = `<div class="row"><label class="inl"><input type="checkbox" id="logOnlySys"> 시험 시스템 기록만</label><button id="logClear">비우기</button></div><div class="log" id="logList"></div>`;
+    el.innerHTML = `<div class="row"><label class="inl" title="실험 기능이 결과를 바꾼 줄과 진행 표시만 남깁니다"><input type="checkbox" id="logOnlySys"> 시험 시스템 기록만</label><button id="logClear" title="화면의 기록만 지웁니다. 전투에는 영향이 없습니다">비우기</button>${HELP.q('log', '행동 기록 도움말')}</div><div class="log" id="logList"></div>`;
     const list = el.querySelector('#logList');
     const fill = () => { const only = el.querySelector('#logOnlySys').checked; list.innerHTML = C.S.log.filter((l) => !only || l.kind === 'sys' || l.kind === 'stage').map((l) => `<div class="th th-${l.kind}">${l.html}</div>`).join('') || '<div class="th th-stage">전투 시작을 누르면 행동과 시험 시스템 동작이 여기에 쌓입니다.</div>'; };
     el.querySelector('#logOnlySys').addEventListener('change', fill);
@@ -97,7 +97,7 @@
   function renderIntents(el) {
     const fill = () => {
       const b = C.S.battle;
-      if (!b) { el.innerHTML = '<div class="note">전투를 시작하면 적이 다음에 할 행동을 확인할 수 있습니다.</div>'; return; }
+      if (!b) { el.innerHTML = '<div class="note">전투를 시작하면 적이 다음에 할 행동을 확인할 수 있습니다. ' + HELP.q('intents', '적의 다음 행동 도움말') + '</div>'; return; }
       if (!C.sysOn('intent')) { el.innerHTML = '<div class="note">적 행동 예측 표시가 꺼져 있습니다.</div>'; return; }
       const rows = C.intentMarkers().map((m) => `<tr><td>${esc(C.unitName(m.enemy))}</td><td>${m.enemy.gridPos + 1}</td><td class="n">${Math.round(m.enemy.turnPos)}</td><td>${esc(m.isWait ? '대기' : m.isMove ? '이동' : C.skillName(m.skillKey))}</td><td>${esc(m.target ? `${C.unitName(m.target)} (${m.target.gridPos + 1}번)` : m.targetGridPos !== 255 ? `${m.targetGridPos + 1}번 칸` : '-')}</td><td>${m.enemy.lockedIntent ? '<span class="pill" style="color:var(--it)">고정</span>' : '<span class="pill">예측</span>'}</td></tr>`);
       el.innerHTML = `<div class="note">${C.optOn('intent', 'lock') ? '예고한 적 행동을 유지합니다. 대상이 사라지면 다른 대상을 선택하거나 대기합니다.' : '적의 차례가 되면 예고한 행동이 달라질 수 있습니다.'}</div><div class="tablewrap"><table><thead><tr><th>몬스터</th><th>칸</th><th class="n">행동력</th><th>다음 행동</th><th>대상</th><th>상태</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan="6" class="note">살아 있는 몬스터가 없습니다.</td></tr>'}</tbody></table></div>
@@ -114,7 +114,7 @@
     const rows = list => '<table class="inspect-stats"><tbody>' + list.map(([k,v]) => `<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join('') + '</tbody></table>';
     const clean = text => String(text || '').replace(/<[^>]*>/g, '').replace(/\[(?:[a-fA-F0-9]{6}|-)\]/g, '');
     const fill = () => {
-      if (!selected) { el.innerHTML = '<div class="note">전투판의 캐릭터·몬스터나 스킬 버튼을 누르면 정보가 표시됩니다. 배치 창의 유닛을 눌러도 확인할 수 있습니다.</div>'; return; }
+      if (!selected) { el.innerHTML = '<div class="note">전투판의 캐릭터·몬스터나 스킬 버튼을 누르면 정보가 표시됩니다. 배치 창의 유닛을 눌러도 확인할 수 있습니다. ' + HELP.q('inspector', '선택 정보 도움말') + '</div>'; return; }
       const u = selected.unit;
       const stale = !selected.setup && u && C.S.battle && !C.S.battle.allUnits.includes(u);
       const note = selected.setup ? '<div class="note">배치 기준 능력치입니다. 전투 중 효과는 포함되지 않습니다.</div>' : stale || (!selected.setup && !C.S.battle) ? '<div class="note">이전 전투에서 선택한 정보입니다.</div>' : '';

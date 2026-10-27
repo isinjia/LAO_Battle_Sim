@@ -21,6 +21,28 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 .menu-item:hover { background: #3a3a3a; }
 .menu-item.off { color: var(--ink-3); }
 #status { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+/* 도움말 */
+.help-q { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; padding: 0; margin-left: 4px; border-radius: 50%; border: 1px solid var(--pv); background: transparent; color: var(--pv); font-size: 11px; font-weight: 700; line-height: 1; cursor: help; vertical-align: middle; }
+.help-q:hover { background: var(--pv); color: #fff; }
+.win-btn.win-help { color: var(--pv); font-weight: 700; }
+.help-wrap { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 10px; min-height: 100%; }
+.help-nav { display: grid; gap: 2px; align-content: start; border-right: 1px solid #1a1a1a; padding-right: 6px; }
+.help-nav button { text-align: left; background: none; border: none; padding: 5px 8px; border-radius: 3px; color: var(--ink-2); }
+.help-nav button:hover { background: #3a3a3a; color: var(--ink); }
+.help-nav button.on { background: var(--accent); color: #fff; font-weight: 700; }
+.help-body { min-width: 0; line-height: 1.55; }
+.help-body h3 { margin-top: 2px; font-size: 15px; color: #fff; }
+.help-body h4 { margin: 14px 0 4px; font-size: 13px; color: var(--pv); }
+.help-body p { margin: 6px 0; }
+.help-body ul, .help-body ol { margin: 4px 0 8px; padding-left: 20px; }
+.help-body li { margin: 3px 0; }
+.help-body a { color: var(--pv); text-decoration: underline dotted; }
+.help-body kbd { display: inline-block; padding: 0 5px; border: 1px solid #666; border-bottom-width: 2px; border-radius: 3px; background: #222; font-size: 11px; }
+.help-body pre { background: #1a1a1a; border: 1px solid #111; padding: 6px 8px; border-radius: 3px; white-space: pre-wrap; user-select: all; }
+.help-table th, .help-table td { white-space: normal; vertical-align: top; }
+.help-table th { background: #333; color: var(--ink); }
+.help-body .help-hit { animation: help-hit 1.6s ease-out; }
+@keyframes help-hit { 0%, 40% { background: #3a4a66; } 100% { background: transparent; } }
 #workspace { position: relative; height: calc(100% - 32px); overflow: hidden; background: #202020; background-image: linear-gradient(#262626 1px, transparent 1px), linear-gradient(90deg, #262626 1px, transparent 1px); background-size: 24px 24px; }
 .win { position: absolute; background: var(--panel); border: 1px solid #141414; box-shadow: 0 4px 18px #0007; display: flex; flex-direction: column; min-width: 240px; min-height: 40px; border-radius: 3px; overflow: hidden; }
 .win-title { height: 28px; background: var(--title); border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; padding: 0 8px; cursor: move; user-select: none; font-size: 12px; font-weight: 700; color: #ddd; gap: 8px; }
@@ -104,6 +126,7 @@ td.n, th.n { text-align: right; }
   <span class="brand">전투 시스템 실험 시뮬레이터</span>
   <div class="menu" id="menuWin"><button>창 ▾</button><div class="dropdown" id="winMenu"></div></div>
   <div class="menu" id="menuLayout"><button>레이아웃 ▾</button><div class="dropdown"><button class="menu-item" id="layoutReset">기본 배치로 되돌리기</button><button class="menu-item" id="layoutScene">씬 창을 화면에 맞추기</button></div></div>
+  <div class="menu" id="menuHelp"><button>도움말 ▾</button><div class="dropdown" id="helpMenu"></div></div>
   <span id="status">데이터 불러오는 중…</span>
 </div>
 <div id="workspace"></div>
@@ -111,7 +134,7 @@ td.n, th.n { text-align: right; }
 <script src="https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js"></script>
 <script>
 // 브라우저가 예전 스크립트를 캐시해 쓰지 않도록 매번 다른 버전 값을 붙여 읽는다(순서 유지)
-(function () { const v = Date.now(); for (const f of ["engine/enums.js", "engine/core.js", "engine/stats.js", "engine/buffs.js", "engine/combat.js", "engine/ai.js", "engine/battle.js", "sd/sd.js", "sd/chars/index.js", "sd/charmap.js", "sandbox-sd.js", "sandbox-core.js", "sandbox-wm.js", "sandbox-ui.js", "sandbox-scene.js", "sandbox-panels.js"]) document.write('<script src="' + f + '?v=' + v + '"><\/script>'); })();
+(function () { const v = Date.now(); for (const f of ["engine/enums.js", "engine/core.js", "engine/stats.js", "engine/buffs.js", "engine/combat.js", "engine/ai.js", "engine/battle.js", "sd/sd.js", "sd/chars/index.js", "sd/charmap.js", "sandbox-sd.js", "sandbox-core.js", "sandbox-help.js", "sandbox-wm.js", "sandbox-ui.js", "sandbox-scene.js", "sandbox-panels.js"]) document.write('<script src="' + f + '?v=' + v + '"><\/script>'); })();
 </script>
 <script>
 (async function () {
@@ -122,6 +145,7 @@ td.n, th.n { text-align: right; }
   document.querySelectorAll('#menubar .menu > button').forEach((b) => b.addEventListener('click', (ev) => { const m = b.parentElement; const open = m.classList.contains('open'); document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open'); ev.stopPropagation(); }));
   document.addEventListener('click', () => document.querySelectorAll('#menubar .menu').forEach((x) => x.classList.remove('open')));
   WM.init($('workspace'), $('winMenu'));
+  $('helpMenu').innerHTML = HELP.TOPICS.map((t) => `<button class="menu-item" data-help="${t.id}">${t.name}</button>`).join('');
   $('layoutReset').addEventListener('click', () => WM.resetLayout());
   $('layoutScene').addEventListener('click', () => { const w = WM.wins.scene; w.x = 0; w.y = 0; w.w = Math.max(640, $('workspace').clientWidth - 380); w.h = Math.max(360, Math.round(w.w * 9 / 16) + 30); w.scale = 1; WM.apply(w); WM.save(); });
   try { await C.load(); await UI.load(); } catch (e) { console.error(e); setStatus('전투 자료를 불러오지 못했습니다. 다시 실행해 주세요.'); return; }
@@ -135,12 +159,14 @@ td.n, th.n { text-align: right; }
   const zoomBox = document.createElement('label'); zoomBox.className = 'win-scale'; zoomBox.innerHTML = '확대 <input type="range" min="50" max="300" step="10" value="100"><b>100%</b>';
   sceneWin.el.querySelector('.win-tools').prepend(zoomBox);
   zoomBox.querySelector('input').addEventListener('input', (e) => { SCENE.zoom = +e.target.value / 100; zoomBox.querySelector('b').textContent = e.target.value + '%'; SCENE.fit(); });
-  const mk = (id, title, x, y, w, h, fill) => { const el = document.createElement('div'); const win = WM.create({ id, title, x, y, w, h, content: el }); fill(el); return win; };
+  const mk = (id, title, x, y, w, h, fill, extra) => { const el = document.createElement('div'); const win = WM.create(Object.assign({ id, title, x, y, w, h, content: el }, extra || {})); fill(el); return win; };
   mk('systems', '실험 시스템', sceneW + 8, 0, WW - sceneW - 10, Math.round(WH * 0.55), (el) => PANELS.renderSystems(el));
   mk('setup', '배치 · 전투 옵션', sceneW + 8, Math.round(WH * 0.55) + 6, WW - sceneW - 10, WH - Math.round(WH * 0.55) - 8, (el) => { PANELS.renderSetup(el); C.on('battle', () => { const b = el.querySelector('#btnStart'); if (b) b.textContent = C.S.battle ? '다시 시작' : '전투 시작'; const st = el.querySelector('#btnStep'); if (st) st.disabled = !C.S.battle || !!C.S.battle.result || C.S.playing; const pl = el.querySelector('#btnPlay'); if (pl) { pl.disabled = !C.S.battle || !!C.S.battle.result; pl.textContent = C.S.playing ? '일시 정지' : '자동 진행'; } const rs = el.querySelector('#btnReset'); if (rs) rs.disabled = !C.S.battle; }); });
   mk('log', '행동 기록', 0, sceneH + 6, Math.round(sceneW * 0.36), WH - sceneH - 8, (el) => PANELS.renderLog(el));
   mk('intents', '적의 다음 행동', Math.round(sceneW * 0.36) + 6, sceneH + 6, Math.round(sceneW * 0.32) - 6, WH - sceneH - 8, (el) => PANELS.renderIntents(el));
   mk('inspector', '선택 정보', Math.round(sceneW * 0.68) + 6, sceneH + 6, Math.max(240, sceneW - Math.round(sceneW * 0.68) - 6), Math.max(200, WH - sceneH - 8), (el) => PANELS.renderInspector(el));
+  // 도움말 창: 처음에는 닫혀 있고, 창마다 있는 ? 버튼이나 위 메뉴 "도움말", F1 로 연다.
+  { const hw = Math.min(720, Math.max(520, Math.round(WW * 0.45))), hh = Math.min(620, Math.max(400, Math.round(WH * 0.7))); mk('help', '도움말', Math.round((WW - hw) / 2), Math.round((WH - hh) / 2), hw, hh, (el) => HELP.mount(el), { hidden: true, minW: 420, minH: 260 }); }
   SCENE.mount(sceneEl);
   new ResizeObserver(() => SCENE.fit()).observe(sceneEl);
   setStatus('');

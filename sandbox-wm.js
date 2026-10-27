@@ -17,18 +17,18 @@
     window.addEventListener('resize', () => { for (const id in WM.wins) WM.fit(WM.wins[id]); });
   };
 
-  // spec: {id, title, x, y, w, h, minW, minH, content(el), scalable(bool, 기본 true), onResize(win), onScale(win)}
+  // spec: {id, title, x, y, w, h, minW, minH, content(el), scalable(bool, 기본 true), hidden(처음엔 닫힘), help(도움말 주제, 기본 id), onResize(win), onScale(win)}
   WM.create = function (spec) {
     const el = document.createElement('div');
     el.className = 'win'; el.dataset.id = spec.id;
     el.innerHTML = `<div class="win-title"><span class="win-name">${spec.title}</span>
       <span class="win-tools">${spec.scalable === false ? '' : `<label class="win-scale" title="창 안 내용 배율">배율 <input type="range" min="50" max="200" step="10" value="100"><b>100%</b></label>`}
-      <button class="win-btn win-min" title="접기">—</button><button class="win-btn win-close" title="닫기">×</button></span></div>
+      <button class="win-btn win-help" title="이 창의 도움말 (F1)">?</button><button class="win-btn win-min" title="접기">—</button><button class="win-btn win-close" title="닫기">×</button></span></div>
       <div class="win-body"><div class="win-content"></div></div>${['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'].map(dir => `<div class="win-resize win-resize-${dir}" data-dir="${dir}" title="크기 조절"></div>`).join('')}`;
     const body = el.querySelector('.win-body'), content = el.querySelector('.win-content');
     if (spec.content) content.appendChild(spec.content);
     WM.root.appendChild(el);
-    const win = { id: spec.id, spec, el, body, content, x: spec.x, y: spec.y, w: spec.w, h: spec.h, scale: 1, min: false, hidden: false, title: spec.title };
+    const win = { id: spec.id, spec, el, body, content, x: spec.x, y: spec.y, w: spec.w, h: spec.h, scale: 1, min: false, hidden: !!spec.hidden, title: spec.title };
     const sv = WM.saved[spec.id];
     if (sv) Object.assign(win, { x: sv.x, y: sv.y, w: sv.w, h: sv.h, scale: sv.scale || 1, min: !!sv.min, hidden: !!sv.hidden });
     WM.wins[spec.id] = win; WM.order.push(spec.id);
@@ -76,6 +76,7 @@
     }));
     el.querySelector('.win-min').addEventListener('click', () => WM.toggleMin(win));
     el.querySelector('.win-close').addEventListener('click', () => WM.hide(win));
+    el.querySelector('.win-help').addEventListener('click', () => { if (window.HELP) HELP.open(spec.help || spec.id); });
     const sc = el.querySelector('.win-scale input');
     if (sc) sc.addEventListener('input', () => { win.scale = +sc.value / 100; WM.apply(win); WM.save(); });
     WM.apply(win); WM.fit(win);
@@ -107,7 +108,7 @@
     store.set(o);
   };
   WM.resetLayout = function () {
-    for (const id in WM.wins) { const w = WM.wins[id]; Object.assign(w, { x: w.spec.x, y: w.spec.y, w: w.spec.w, h: w.spec.h, scale: 1, min: false, hidden: false }); WM.apply(w); }
+    for (const id in WM.wins) { const w = WM.wins[id]; Object.assign(w, { x: w.spec.x, y: w.spec.y, w: w.spec.w, h: w.spec.h, scale: 1, min: false, hidden: !!w.spec.hidden }); WM.apply(w); }
     WM.save(); WM.renderMenu();
   };
   WM.renderMenu = function () {
