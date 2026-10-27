@@ -79,7 +79,8 @@
     let cssW, cssH;
     if (C.setup.autoResolution !== false) {
       // 창 전체를 채우고 조작부는 기준 해상도에 맞춰 균일하게 확대·축소한다.
-      const scale = Math.min(hw / 1600, hh / 900);
+      //  원작 UIRoot 기준(1920x1080)보다 좁아지지 않게 해야 왼쪽 아래 턴 순서 바와 오른쪽 아래 스킬 패널이 원작처럼 떨어져 있다.
+      const scale = Math.min(hw / 1920, hh / 1080);
       W = hw / scale; H = hh / scale; cssW = hw; cssH = hh;
     } else {
       W = +(C.setup.aspect || 2340); H = 1080;
@@ -410,8 +411,9 @@
   //  원작 프리팹 UI: Panel_StageBattle / UIBattleCreature / UICreatureInfo 의 위젯 배치를 그대로 그린다 (sandbox-ui.js)
   // =====================================================================================================
   // 행동력 트랙 상수: UIBattleCreature.cs AP_TRACK_LEFT_X -920 / RIGHT_X -15 / ALLY_Y 150 / ENEMY_Y 50 / FIRST_Y 100, _apWinnerScale 0.85,
-  //  Panel_StageBattle._turnApSlotSpacing 102, _turnApWaveEntryDuration 0.7, _turnApWaveEntryInterval 0.1, UIConstants.Scale65
-  const AP_TRACK = { LEFT_X: -920, RIGHT_X: -15, ALLY_Y: 150, ENEMY_Y: 50, FIRST_Y: 100, SLOT: 102, SCALE: 0.65, WINNER_SCALE: 0.85, WAVE_ENTRY: 0.7, WAVE_INTERVAL: 0.1 };
+  //  Panel_StageBattle._turnApSlotSpacing 102, _apWinnerSlotExtraSpacing 14, _turnApWaveEntryDuration 0.7, _turnApWaveEntryInterval 0.1, UIConstants.Scale65
+  //  칸은 UI_BattleCreatureScroll/ScrollView(화면 왼쪽 아래 고정) 기준이고, ScrollView 패널의 잘림 영역(중심 -555,155 크기 1150x310) 밖은 그리지 않는다.
+  const AP_TRACK = { LEFT_X: -920, RIGHT_X: -15, ALLY_Y: 150, ENEMY_Y: 50, FIRST_Y: 100, SLOT: 102, WINNER_GAP: 14, SCALE: 0.65, WINNER_SCALE: 0.85, WAVE_ENTRY: 0.7, WAVE_INTERVAL: 0.1, CLIP: [-555, 155, 1150, 310] };
   function hitFromUi(o, rect, kind) { hit(rect.x, rect.y, rect.w, rect.h, kind.kind || kind, kind.data); }
   // 오른쪽 아래 스킬 패널 — 라이브 전투 화면(2400x1200 캡처)에서 잰 배치를 설계 좌표(1080 기준)로 환산해 화면 오른쪽 아래에 붙인다.
   //  패널 바탕(사다리꼴) → 헤더 띠("스킬명 : …", 속성 아이콘) → 오른쪽 버프 띠 → "AP n" → 버튼 4개(원형 아이콘 + AP 배지 + 3x3 범위 격자)
@@ -488,7 +490,7 @@
     ov['UI_penel_rightTop/btnAnomaly'] = { active: false };
     ov['btnBattleLog/Label (1)'] = { text: '기록' };
     // 실행 중 쓰지 않거나 숨겨 두는 것들(원작 코드가 끄거나 화면 밖에 두는 것)
-    for (const k of ['Panel_StageBattle/lblScreenRound', 'UICreatureTooltip', 'Panel_StageBattle/lblBtnT', 'lblCenterDesc', 'targetCutIn', 'targetCut_ori', 'CutIn1', 'CutIn2', 'CutIn3', 'Panel_StageBattle/GameObject', 'btnStepBytStep', 'player_squad', 'UI_penel_bottom/skill_penel', 'round_label_main', 'delayWrapper', 'skill_icon_frame (2)', 'skill_icon_frame (3)', 'wrapper/sprTurnBar/ScrollView', 'tactic_viewer', 'speed_control', 'btnBattleLog/bg']) ov[k] = { active: false };
+    for (const k of ['Panel_StageBattle/lblScreenRound', 'UICreatureTooltip', 'Panel_StageBattle/lblBtnT', 'lblCenterDesc', 'targetCutIn', 'targetCut_ori', 'CutIn1', 'CutIn2', 'CutIn3', 'Panel_StageBattle/GameObject', 'btnStepBytStep', 'player_squad', 'UI_penel_bottom/skill_penel', 'round_label_main', 'delayWrapper', 'skill_icon_frame (2)', 'skill_icon_frame (3)', 'tactic_viewer', 'speed_control', 'btnBattleLog/bg']) ov[k] = { active: false };
     // 오른쪽 위: 자동 전투 토글 (BattleAutoActive / BattleAutoLock), LOG
     const auto = C.isAuto();
     ov['battleAuto/BattleAutoActive'] = { active: auto, hit: 'auto' }; ov['battleAuto/BattleAutoLock'] = { active: !auto, hit: 'auto' };
@@ -529,8 +531,8 @@
   //  새로 생긴 칸(웨이브 시작·소환)은 왼쪽 화면 밖에서 진영별 대기 칸으로 입장한다. 예약(지연) 공격은 독립 행동력을 가진 칸으로 함께 선다.
   function drawTrack(ctx, now, markers) {
     const b = C.S.battle; if (!b) return;
-    const anchor = UI.find('battle', 'sprTurnBar/ScrollView/Anchor');
-    const ax = anchor ? anchor.rect[0] : 109, ay = anchor ? anchor.rect[1] : -491;
+    const anchor = UI.find('battle', 'UI_BattleCreatureScroll/ScrollView');
+    const ax = anchor ? anchor.rect[0] : 183 - (1920 - W) / 2, ay = anchor ? anchor.rect[1] : -H / 2;
     const lay = UI.layout('tbar'); if (!lay.length) return;
     const S = C.S;
     if (SCENE.trackBattle !== b) { SCENE.trackBattle = b; SCENE.track = { pos: new Map(), enter: new Map(), winner: null, ruid: 0 }; }
@@ -540,7 +542,7 @@
     const mix = (p, q, k) => ({ x: lerp(p.x, q.x, k), y: lerp(p.y, q.y, k), s: lerp(p.s === undefined ? AP_TRACK.SCALE : p.s, q.s === undefined ? AP_TRACK.SCALE : q.s, k) });
     // GetApTrackSlotPosition: 공통 1등 칸(우승자 확대 폭만큼) 뒤로 102 간격. GetApTrackPosition: 왼쪽 끝 ~ 2등 칸을 행동력 0~100 으로
     const ratio = AP_TRACK.WINNER_SCALE / AP_TRACK.SCALE, winnerSlot = Math.max(1, ratio);
-    const slotX = (i) => AP_TRACK.RIGHT_X - (Math.max(0, i) + winnerSlot) * AP_TRACK.SLOT;
+    const slotX = (i) => AP_TRACK.RIGHT_X - (Math.max(0, i) + winnerSlot) * AP_TRACK.SLOT - AP_TRACK.WINNER_GAP;
     const apX = (ap) => lerp(AP_TRACK.LEFT_X, slotX(0), clamp01(ap / 100));
     const trackY = (ally) => (ally ? AP_TRACK.ALLY_Y : AP_TRACK.ENEMY_Y);
     const faceWidget = UI.find('tbar', 'UIBattleCreature/TbarIcon'); const fr = faceWidget ? faceWidget.rect : [-120, 0, 0, 120];
@@ -619,6 +621,8 @@
     const showSelect = wk && byKey.has(wk) && !animating; // Tbar_select: 연출이 끝난 뒤 우승자 칸에만
     const tags = {}; let tagN = 0;
     const order = items.slice().sort((p, q) => placed.get(p.key).x - placed.get(q.key).x); // 오른쪽 칸이 위에 그려지도록
+    const [ccx, ccy, cw, ch] = AP_TRACK.CLIP;
+    ctx.save(); ctx.beginPath(); ctx.rect(W / 2 + ax + ccx - cw / 2, H / 2 - ay - ccy - ch / 2, cw, ch); ctx.clip();
     for (const it of order) {
       const u = it.u, face = faceImg(u), p = placed.get(it.key);
       const tag = C.isMob(u) ? (tags[u.key] === undefined ? (tags[u.key] = String.fromCharCode(65 + tagN++)) : tags[u.key]) : '';
@@ -638,6 +642,7 @@
       if (!C.optOn('hud', 'apBars')) ov['UIBattleCreature/TurnApEffect'] = { active: false };
       UI.draw(ctx, lay, { W, H, ox: ax + p.x, oy: ay + p.y, scale: p.s || AP_TRACK.SCALE, ov, hit: hitFromUi });
     }
+    ctx.restore();
     const manual = S.manual;
     const winnerUnit = wk && byKey.has(wk) ? byKey.get(wk).u : null;
     if (C.sysOn('skillReturnPreview') && C.sysOn('skillApReturn') && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {

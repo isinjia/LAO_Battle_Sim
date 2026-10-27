@@ -6,6 +6,7 @@
 """
 import re, io, os, json, sys
 PROJ = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+if not os.path.isdir(os.path.join(PROJ, 'Assets')): PROJ = os.path.join(PROJ, '1_Onestre_QA')  # 시뮬레이터가 E:\LAO\LAO_Battle_Sim 에 있을 때 본편 프로젝트
 ASSETS = os.path.join(PROJ, 'Assets', 'AssetBundleResource')
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ui'))
 SPR_DIR = os.path.join(OUT, 'sprites')

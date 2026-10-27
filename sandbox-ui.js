@@ -29,7 +29,7 @@
     const dw = UI.width - 1920, dh = UI.height - 1080;
     UI._battleLayout = base.map(o => {
       const q = wide.get(o.path) || o;
-      const vertical = o.path.includes('/UI_penel_rightTop') ? dh / 2 : o.path.includes('/UI_penel_bottom') || o.path.includes('/UI_penel_right/') ? -dh / 2 : 0;
+      const vertical = o.path.includes('/UI_penel_rightTop') ? dh / 2 : o.path.includes('/UI_penel_bottom') || o.path.includes('/UI_penel_right/') || o.path.includes('/UI_BattleCreatureScroll') ? -dh / 2 : 0;
       const rect = o.rect.map((v, i) => i % 2 === 0 ? v + (q.rect[i] - v) * dw / 480 : v + vertical);
       return { ...o, rect };
     });
