@@ -300,9 +300,11 @@
     const bx = unitBox(u), p = bx.p, dead = u.hp <= 0;
     const an = C.S.anims.get(u.aid) || {};
     let drawn = false;
+    u._infoPt = null;
     if (C.sysOn('sd') && window.SDL && SDL.ok) {
       const k = (UNIT_H * p.f) / 110; // 칸 안 사람형 110px → 화면 유닛 높이
       drawn = SDL.drawTo(ctx, u, p.x, p.y, k, dead && an.name !== 'die' ? 0.35 : 1);
+      if (drawn) u._infoPt = SDL.nodePoint(u, 'buffIcon', p.x, p.y, k); // UICreatureInfo 기준점(_buffIcon 특수 위치)
     }
     if (!drawn) { // 리그 없음: 실루엣 + 이름표
       const im = faceImg(u);
@@ -316,7 +318,9 @@
   function drawUnitHud(ctx, u, m, pv, markers) {
     const bx = unitBox(u), p = bx.p, dead = u.hp <= 0, S = C.S;
     const hud = C.sysOn('hud');
-    if (hud && !dead) drawCreatureInfo(ctx, u, m, pv, !!(m && m.sel && m.sel.targetAid === u.aid));
+    // 펼친 정보(SelectView): 행동 차례인 아군(BattleSelectCreature)과 승인 대상(SKillConfirm)
+    const selected = !!(m && m.sel && m.sel.targetAid === u.aid) || !!(S.pending && S.pending.unit === u && C.isPC(u));
+    if (hud && !dead) drawCreatureInfo(ctx, u, m, pv, selected);
     if (false) {
       const bw = 96 * p.f, bh = 8 * p.f, x = p.x - bw / 2, y = p.y + 8 * p.f;
       ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
@@ -618,13 +622,12 @@
     for (const k of Array.from(T.pos.keys())) if (!byKey.has(k)) { T.pos.delete(k); T.enter.delete(k); }
 
     const showSelect = wk && byKey.has(wk) && !animating; // Tbar_select: 연출이 끝난 뒤 우승자 칸에만
-    const tags = {}; let tagN = 0;
     const order = items.slice().sort((p, q) => placed.get(p.key).x - placed.get(q.key).x); // 오른쪽 칸이 위에 그려지도록
     const [ccx, ccy, cw, ch] = AP_TRACK.CLIP;
     ctx.save(); ctx.beginPath(); ctx.rect(W / 2 + ax + ccx - cw / 2, H / 2 - ay - ccy - ch / 2, cw, ch); ctx.clip();
     for (const it of order) {
       const u = it.u, face = faceImg(u), p = placed.get(it.key);
-      const tag = C.isMob(u) ? (tags[u.key] === undefined ? (tags[u.key] = String.fromCharCode(65 + tagN++)) : tags[u.key]) : '';
+      const tag = monsterTag(u);
       const mk = !it.reserve && markers.find((x) => x.enemy === u);
       const ap = gaugeAp(it.pre, it.cur, ph);
       const ov = {
@@ -670,16 +673,44 @@
     const ratio = Math.max(0, Math.min(1, hpv / u.maxHp)), left = Math.max(0, Math.min(1, (u.hp - dmg) / u.maxHp));
     const ov = {
       'Wrapper/LineView': { active: !selected }, 'Wrapper/SelectView': { active: !!selected }, 'Wrapper/WaitLb': { active: false }, 'Wrapper/BuffOverSp': { active: false },
-      'LineView/CreatureTagLb': { text: u._tag || '' },
+      'LineView/CreatureTagLb': { text: monsterTag(u) },
       'SliderLineHpInfo/SliderLineHpSp': { fill: ratio }, 'SliderLineHpInfo/SliderLineHpPreviewSp': { fill: dmg ? left : ratio, color: dmg ? [0.45, 0, 0, 1] : undefined },
-      'SliderLineHpInfo/MarkDestroySp': { active: !!dmg && left <= 0 },
-      'LineView/LineTarget': { active: false },
-      'SelectState/SliderSelectHpSp': { fill: ratio }, 'SelectState/SliderSelectPreviewHpSp': { fill: dmg ? left : ratio, color: dmg ? [0.45, 0, 0, 1] : undefined }, 'SelectState/MarkDestroySp': { active: !!dmg && left <= 0 },
+      'LineView/LineTarget': { active: false }, // MarkDestroySp(노란 눈금)는 코드가 건드리지 않아 프리팹대로 항상 보인다
+      'SelectState/SliderSelectHpSp': { fill: ratio }, 'SelectState/SliderSelectPreviewHpSp': { fill: dmg ? left : ratio, color: dmg ? [0.45, 0, 0, 1] : undefined },
       'TextWrapper/CreatureNameLb': { text: C.unitName(u) }, 'TextWrapper/CreatureLvLb': { text: String(u.level) }, 'TextWrapper/CreatureHpLb': { text: `${Math.max(0, Math.round(u.hp)).toLocaleString()} / ${Math.round(u.maxHp).toLocaleString()}` },
       'SelectView/SelectTarget': { active: !!(selected && r) }, 'SelectTarget/HiRateLb': { text: r ? Math.round(r.hit * 100) + '%' : '' }, 'SelectTarget/DefLb': { active: false },
     };
-    const sc = 0.9 * p.f;
-    UI.draw(ctx, lay, { W, H, ox: p.x - W / 2 - 60 * sc, oy: (H / 2 - p.y) - 6 * sc, scale: sc, ov });
+    if (selected && C.isMob(u)) ov['Wrapper/SelectView'].move = [8, 0]; // ShowSelectCreatureInfo: 몬스터는 SelectView x = 8
+    // 기준점: 리그의 _buffIcon 특수 위치(Common.SetViewPoint). 리그가 없으면 몸 가운데 오른쪽. 화면 UI 라 원근 배율 없이 전장 배율만 따른다
+    const pt = u._infoPt || { x: p.x + bx.w * 0.1, y: bx.y + bx.h * 0.55 };
+    const sc = Math.min(1, (W - 100) / 1700, (H - 420) / 600);
+    const ox = pt.x - W / 2, oy = H / 2 - pt.y;
+    // 효과 아이콘(UIBuffIcon 35x35, TableBuffIcon: 4열·아래 방향·왼쪽 위 기준·여백 1.25). 7개까지, 넘치면 BuffOverSp 에 남은 수
+    const list = (u.buffs || []).slice().sort((a, b) => (b.key === BUFF_PRIORITY) - (a.key === BUFF_PRIORITY));
+    const over = list.length > 7;
+    ov['Wrapper/BuffOverSp'] = { active: over }; ov['BuffOverSp/BuffOverLb'] = { text: over ? String(list.length - 7) : '' };
+    UI.draw(ctx, lay, { W, H, ox, oy, scale: sc, ov });
+    const tbl = selected ? [15.9, -19.1] : [7.9, -6], ER = C.E.BUFFEFFECT_ERASE_TYPE, pad = 1.25, size = 35, pitch = size + pad * 2;
+    let n = 0;
+    for (const bf of list.slice(0, 7)) {
+      const name = (C.ICONS.buff[bf.key] || [])[bf.sortIndex - 1]; if (!name) continue; // 아이콘 없는 효과는 표에서 빠진다(ignoreTabel)
+      const im = sprite(name); const col = n % 4, row = Math.floor(n / 4); n++;
+      if (!im) continue;
+      // 지속 턴 효과의 마지막 턴: TweenAlpha 1 → 0.3 (0.8초 왕복)
+      const blink = (bf.eraseType === ER.ROUND || bf.eraseType === ER.TURN) && bf.left <= 1 && num(bf.row, 'BuffEffectLeftCount' + bf.sortIndex) !== 0;
+      const ph = (performance.now() / 800) % 2, a = blink ? 1 - 0.7 * (ph < 1 ? ph : 2 - ph) : 1;
+      const cx = tbl[0] + pad + size / 2 + col * pitch, cy = tbl[1] - pad - size / 2 - row * pitch;
+      drawImg(ctx, im, W / 2 + ox + cx * sc, H / 2 - oy - cy * sc, size * sc, size * sc, a);
+    }
+  }
+  const BUFF_PRIORITY = 'Effect_MP_Ravager_Challenge4_1'; // Const.BuffPriorityText: 항상 첫 칸
+  // 몬스터 구분 글자(Creature.GetUIIdentifier + Common.NumberToAlphabet): 전투에 들어온 몬스터 순번, 한 번 정하면 자리를 옮겨도 유지
+  function monsterTag(u) {
+    if (!C.isMob(u)) return '';
+    if (!u._uiId) { const b = C.S.battle; const list = ((b && (b.allUnits || b.units)) || []).filter((x) => C.isMob(x)); u._uiId = list.indexOf(u) + 1; }
+    let n = u._uiId, s = '';
+    while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+    return s;
   }
 
   function drawPreviewPanel(ctx, pv, bx, by, placeLeft) {

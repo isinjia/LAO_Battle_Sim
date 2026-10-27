@@ -99,6 +99,7 @@
         c.root.scale.set(it.flip ? -k : k, k, 1);
         const mid = (t.box.min.x + t.box.max.x) / 2 * k;
         c.root.position.set(cx - (it.flip ? -mid : mid), by - t.box.min.y * k, 0);
+        it.holder._sdPose = { k, mid, flip: !!it.flip, minY: t.box.min.y };
         if (!c.root.parent) this.scene.add(c.root);
         c.root.visible = true;
         used.add(c); slots.push({ c, col, row });
@@ -171,6 +172,15 @@
       ctx.drawImage(this.canvas, s.sx, s.sy, this.CW * R, this.CH * R, dx, dy, W, H);
       ctx.restore();
       return true;
+    },
+    // 리그 노드(원작 특수 위치, 예: buffIcon)의 이번 프레임 화면 위치. drawTo 와 같은 발 위치·배율을 받는다. 노드가 없으면 null
+    nodePoint(holder, name, cx, footY, k) {
+      const c = holder._sd, ps = holder._sdPose; if (!c || !ps || !holder._sdSlot) return null;
+      const t = c.tpl, ix = t._nodeIx || (t._nodeIx = {});
+      if (ix[name] === undefined) ix[name] = t.data.nodes.findIndex((n) => n.n === name);
+      if (ix[name] < 0) return null;
+      const p = c.posU(ix[name]), s = ps.flip ? -1 : 1;
+      return { x: cx + k * s * (ps.k * p[0] - ps.mid), y: footY + k * ps.k * (ps.minY - p[1]) };
     },
     release(holder) { if (holder && holder._sd) { this.scene && this.scene.remove(holder._sd.root); holder._sd.dispose && holder._sd.dispose(); holder._sd = null; holder._sdSlot = null; } },
   };
