@@ -172,8 +172,12 @@
   document.addEventListener('keydown', (ev) => { if (ev.key === 'F1') { ev.preventDefault(); HELP.open(HELP.current || 'start'); } });
 
   // ---------------------------------------------------------------- 버전과 패치노트
-  HELP.VERSION = 'V1.18';
+  HELP.VERSION = 'V1.19';
   HELP.NOTES = [
+    { version: 'V1.19', date: '2026-10-27', items: [
+      '전투원 목록을 초기 전투원 5명(P/A-00 그리폰, 에이미 레이저, 마이티 R, 콘스탄챠 S2, 다프네)으로 되돌림. 나머지 전투원은 아직 구현·검증 전이라 편성 목록과 배포판에서 제외',
+      'SD 리그 자료도 5명 것만 저장소·배포판에 포함(sd/charmap.js 와 sd/chars/index.js 가 기준, tools/collect_assets.py 는 이 목록만 모음)',
+    ] },
     { version: 'V1.18', date: '2026-10-27', items: [
       '행동 개시 버튼 빛 효과가 검은 얼룩처럼 보이던 문제 수정: 원작 빛 효과 아틀라스(BattleAtlas_add)는 더하기 섞기라 그와 같이 그려 주황 빛으로 표시',
       '캐릭터를 길게 누르는 동안 누른 자리에 흰 고리가 돌며 0.3초에 걸쳐 차오르고, 다 차면 정보창이 뜸. 중간에 떼거나 움직이면 취소',

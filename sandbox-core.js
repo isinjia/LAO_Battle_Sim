@@ -72,7 +72,9 @@
   let PCS = [], PCMAP = {}, MOBS = [], MOBMAP = {}, ICONS = { skill: {}, buff: {}, stageBG: {}, mobTbar: {}, pcTbar: {}, buffDesc: {} }, SPRITES = {};
   function buildIndexes() {
     const T = (t) => L.T(t) || {};
-    PCS = Object.values(T('Table_PC')).filter((p) => num(p, 'IsUse') === 1 && num(p, 'IsHavingTurn') === 1)
+    // 초기 전투원만 고를 수 있게 한다: sd/charmap.js 에 SD 리그가 대응된 전투원(5명). 나머지는 아직 구현·검증 전이라 목록에서 뺀다
+    const roster = window.SD_CHARMAP ? new Set(Object.keys(SD_CHARMAP)) : null;
+    PCS = Object.values(T('Table_PC')).filter((p) => num(p, 'IsUse') === 1 && num(p, 'IsHavingTurn') === 1 && (!roster || roster.has(p.Key)))
       .map((p) => ({ key: p.Key, name: L.name(p.Name, p.Key), startGrade: num(p, 'StartGrade', 1), maxGrade: num(p, 'MaxGrade', 5), cls: num(p, 'ActorClassType'), role: num(p, 'RoleType'), rig: !!(window.SDL && SDL.rigOf({ type: 'CHARACTER', key: p.Key })) }))
       .filter((p) => !/Dummy|Test/i.test(p.key) && !/더미|테스트/.test(p.name))
       .sort((a, b) => (b.rig - a.rig) || a.name.localeCompare(b.name, 'ko'));
